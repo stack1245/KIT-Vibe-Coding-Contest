@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Phase Vuln Coach 대시보드</title>
+  <link rel="stylesheet" href="assets/css/dashboard.css">
+</head>
+<body>
+  <main class="dashboard-shell">
+    <header class="dashboard-head">
+      <a class="dashboard-home" href="/">Phase Vuln Coach</a>
+      <div class="dashboard-links">
+        <a href="/analysis">파일 분석</a>
+        <a href="/admin" id="dashboard-admin-link" hidden>관리자</a>
+      </div>
+    </header>
+
+    <section class="dashboard-card">
+      <p class="dashboard-eyebrow">Account Overview</p>
+      <h1 id="dashboard-name">계정 정보</h1>
+      <p id="dashboard-email" class="dashboard-subtext"></p>
+
+      <div class="dashboard-grid">
+        <article class="dashboard-panel">
+          <h2>인증 상태</h2>
+          <ul class="dashboard-list">
+            <li><span>현재 로그인 방식</span><strong id="dashboard-auth-method"></strong></li>
+            <li><span>GitHub 연동 여부</span><strong id="dashboard-github-status"></strong></li>
+            <li><span>가입 시각</span><strong id="dashboard-created-at"></strong></li>
+          </ul>
+        </article>
+
+        <article class="dashboard-panel">
+          <h2>연결 관리</h2>
+          <p id="dashboard-github-description" class="dashboard-panel-text"></p>
+          <div class="dashboard-actions">
+            <button id="dashboard-github-button" class="dashboard-button" type="button">GitHub 연동하기</button>
+            <a class="dashboard-button secondary" href="/analysis">파일 분석으로 이동</a>
+          </div>
+        </article>
+
+        <article class="dashboard-panel dashboard-panel-danger">
+          <h2>계정 관리</h2>
+          <p class="dashboard-panel-text">회원탈퇴를 진행하면 계정 정보와 연동 정보가 모두 삭제되며 복구할 수 없습니다.</p>
+          <div class="dashboard-actions">
+            <button id="dashboard-delete-account-button" class="dashboard-button danger" type="button">회원탈퇴</button>
+          </div>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <script src="assets/js/dashboard.js" defer></script>
+</body>
+</html>
