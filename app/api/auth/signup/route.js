@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { clearSignupVerification, hasValidSignupVerification, setAuthenticatedSession } from '../../../../lib/server/auth';
 import { commitSession, getSession } from '../../../../lib/server/session';
 import { createLocalUser, findUserByEmail, formatUser, isStrongPassword, isValidEmail } from '../../../../lib/server/database';
-import { getVerificationMessage } from '../../../../lib/server/config';
+import { AUTH_RATE_LIMITS, getVerificationMessage } from '../../../../lib/server/config';
+import { enforceRateLimit } from '../../../../lib/server/rate-limit';
 
 export async function POST(request) {
   const body = await request.json().catch(() => ({}));
@@ -10,6 +11,15 @@ export async function POST(request) {
   const password = String(body.password || '');
   const confirmPassword = String(body.confirmPassword || '');
   const session = await getSession();
+  const rateLimitedResponse = enforceRateLimit(request, {
+    namespace: 'auth-signup',
+    identifier: email,
+    ...AUTH_RATE_LIMITS.signup,
+  });
+
+  if (rateLimitedResponse) {
+    return rateLimitedResponse;
+  }
 
   if (!email || !password) {
     return NextResponse.json({ ok: false, message: '이메일과 비밀번호를 모두 입력해주세요.' }, { status: 400 });

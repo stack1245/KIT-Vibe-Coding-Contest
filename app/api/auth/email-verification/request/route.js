@@ -2,12 +2,27 @@ import { NextResponse } from 'next/server';
 import { clearSignupVerification, sendVerificationEmail } from '../../../../../lib/server/auth';
 import { commitSession, getSession } from '../../../../../lib/server/session';
 import { findUserByEmail, isValidEmail, saveEmailVerification } from '../../../../../lib/server/database';
-import { SIGNUP_CODE_TTL_MS, generateVerificationCode, getMailErrorMessage } from '../../../../../lib/server/config';
+import {
+  AUTH_RATE_LIMITS,
+  SIGNUP_CODE_TTL_MS,
+  generateVerificationCode,
+  getMailErrorMessage,
+} from '../../../../../lib/server/config';
+import { enforceRateLimit } from '../../../../../lib/server/rate-limit';
 
 export async function POST(request) {
   const body = await request.json().catch(() => ({}));
   const email = String(body.email || '').trim();
   const session = clearSignupVerification(await getSession());
+  const rateLimitedResponse = enforceRateLimit(request, {
+    namespace: 'verification-request',
+    identifier: email,
+    ...AUTH_RATE_LIMITS.verificationRequest,
+  });
+
+  if (rateLimitedResponse) {
+    return commitSession(rateLimitedResponse, session);
+  }
 
   if (!email) {
     return commitSession(NextResponse.json({ ok: false, message: '이메일을 입력해주세요.' }, { status: 400 }), session);

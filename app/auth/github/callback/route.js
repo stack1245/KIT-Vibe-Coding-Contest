@@ -1,6 +1,13 @@
 import { NextResponse } from 'next/server';
 import { clearOAuthSession, fetchGitHubUser, setAuthenticatedSession } from '../../../../lib/server/auth';
-import { createGitHubUser, findUserByEmail, findUserByGitHubId, findUserById, linkGitHubToUser } from '../../../../lib/server/database';
+import {
+  createGitHubUser,
+  findUserByEmail,
+  findUserByGitHubId,
+  findUserById,
+  linkGitHubToUser,
+  touchUserLastLogin,
+} from '../../../../lib/server/database';
 import { getGitHubConfig, hasGitHubConfig } from '../../../../lib/server/config';
 import { commitSession, getSession } from '../../../../lib/server/session';
 
@@ -83,7 +90,8 @@ export async function GET(request) {
 
     const linkedUser = findUserByGitHubId(githubUser.id);
     if (linkedUser) {
-      return commitSession(redirectWithParams(request, '/dashboard', { auth: 'success' }), setAuthenticatedSession(clearOAuthSession(session), linkedUser.id, 'github'));
+      const authenticatedUser = touchUserLastLogin(linkedUser.id);
+      return commitSession(redirectWithParams(request, '/dashboard', { auth: 'success' }), setAuthenticatedSession(clearOAuthSession(session), authenticatedUser.id, 'github'));
     }
 
     if (!githubUser.email) {

@@ -1,10 +1,5 @@
 PRAGMA journal_mode = WAL;
 
-CREATE TABLE IF NOT EXISTS schema_migrations (
-  name TEXT PRIMARY KEY,
-  applied_at TEXT NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   email TEXT NOT NULL UNIQUE,
@@ -15,7 +10,6 @@ CREATE TABLE IF NOT EXISTS users (
   github_avatar_url TEXT,
   github_profile_url TEXT,
   auth_provider TEXT NOT NULL DEFAULT 'local',
-  last_login_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );

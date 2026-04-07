@@ -97,14 +97,37 @@ Gmail은 일반 계정 비밀번호로 SMTP 로그인이 막힐 수 있습니다
 
 - 런타임 DB 파일: `data/phase-vuln-coach.sqlite`
 - 스키마 파일: `db/schema.sql`
+- 마이그레이션 디렉터리: `db/migrations`
 - 실제 초기화 코드: `lib/server/database.js`
 
-애플리케이션이 시작되면 `lib/server/database.js`가 `db/schema.sql`을 읽어 테이블과 인덱스를 생성합니다. `data/`는 `.gitignore`에 포함되어 있으므로 실제 DB 파일은 커밋되지 않고, 스키마만 Git에 포함됩니다.
+애플리케이션이 시작되면 `lib/server/database.js`가 `db/schema.sql`을 읽어 최신 스냅샷 스키마를 초기화합니다. 기존 DB가 이미 있으면 `db/migrations` 아래의 SQL 파일을 순서대로 적용해 스키마를 최신 상태로 맞춥니다. `data/`는 `.gitignore`에 포함되어 있으므로 실제 DB 파일은 커밋되지 않고, 스키마와 migration만 Git에 포함됩니다.
 
 현재 포함된 테이블은 아래 두 개입니다.
 
 - `users`: 이메일 계정, GitHub 연동 정보, 인증 방식, 생성/수정 시각 저장
 - `email_verifications`: 이메일 인증 코드 해시와 만료 시각 저장
+- `schema_migrations`: 적용된 migration 이력 저장
+
+현재 `users` 테이블에는 마지막 로그인 시각 확인을 위한 `last_login_at` 컬럼도 포함됩니다.
+
+## 보안 강화
+
+- 로그인, 회원가입, 이메일 인증 요청/확인 API에 IP + 이메일 기준 rate limit이 적용됩니다.
+- 관리자 사용자 목록 조회/삭제 API에도 rate limit이 적용됩니다.
+- 로그인 성공 시 마지막 로그인 시각이 SQLite에 저장됩니다.
+
+## 테스트
+
+```bash
+npm test
+```
+
+기본 테스트는 아래 범위를 검증합니다.
+
+- 스키마 스냅샷 기반 DB 초기화
+- 기존 SQLite DB에 대한 migration 적용
+- 회원가입 인증 세션 헬퍼 동작
+- rate limit 윈도우 동작
 
 ## 프로젝트 구조
 
@@ -122,6 +145,7 @@ Gmail은 일반 계정 비밀번호로 SMTP 로그인이 막힐 수 있습니다
 │  └─ page.js
 ├─ components/
 ├─ db/
+│  ├─ migrations/
 │  └─ schema.sql
 ├─ data/
 ├─ lib/

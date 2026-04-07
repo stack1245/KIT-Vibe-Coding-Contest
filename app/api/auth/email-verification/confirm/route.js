@@ -2,13 +2,23 @@ import { NextResponse } from 'next/server';
 import { clearSignupVerification, createSignupVerifiedSession } from '../../../../../lib/server/auth';
 import { commitSession, getSession } from '../../../../../lib/server/session';
 import { isValidEmail, verifyEmailVerificationCode } from '../../../../../lib/server/database';
-import { getVerificationMessage } from '../../../../../lib/server/config';
+import { AUTH_RATE_LIMITS, getVerificationMessage } from '../../../../../lib/server/config';
+import { enforceRateLimit } from '../../../../../lib/server/rate-limit';
 
 export async function POST(request) {
   const body = await request.json().catch(() => ({}));
   const email = String(body.email || '').trim();
   const code = String(body.code || '').trim();
   const session = await getSession();
+  const rateLimitedResponse = enforceRateLimit(request, {
+    namespace: 'verification-confirm',
+    identifier: email,
+    ...AUTH_RATE_LIMITS.verificationConfirm,
+  });
+
+  if (rateLimitedResponse) {
+    return commitSession(rateLimitedResponse, clearSignupVerification(session));
+  }
 
   if (!email || !code) {
     return NextResponse.json({ ok: false, message: '이메일과 인증 코드를 입력해주세요.' }, { status: 400 });

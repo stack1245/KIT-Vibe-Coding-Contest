@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getSessionUser } from '../../../../../lib/server/auth';
 import { deleteUserById } from '../../../../../lib/server/database';
+import { AUTH_RATE_LIMITS } from '../../../../../lib/server/config';
+import { enforceRateLimit } from '../../../../../lib/server/rate-limit';
 import { getSession } from '../../../../../lib/server/session';
 
-export async function DELETE(_request, { params }) {
+export async function DELETE(request, { params }) {
   const session = await getSession();
   const user = getSessionUser(session);
   const targetId = Number(params.id);
@@ -14,6 +16,16 @@ export async function DELETE(_request, { params }) {
 
   if (!user.isAdmin) {
     return NextResponse.json({ ok: false, message: '관리자 권한이 필요합니다.' }, { status: 403 });
+  }
+
+  const rateLimitedResponse = enforceRateLimit(request, {
+    namespace: 'admin-users-delete',
+    identifier: user.id,
+    ...AUTH_RATE_LIMITS.admin,
+  });
+
+  if (rateLimitedResponse) {
+    return rateLimitedResponse;
   }
 
   if (!Number.isInteger(targetId) || targetId <= 0) {
