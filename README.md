@@ -1,6 +1,6 @@
 # Phase Vuln Coach
 
-Phase Vuln Coach는 랜딩 페이지, 로컬 계정 인증, GitHub OAuth, 관리자 페이지, 이메일 인증 기반 회원가입을 포함한 Node.js 웹 애플리케이션입니다.
+Phase Vuln Coach는 Next.js App Router 기반의 웹 애플리케이션입니다. 랜딩 페이지, 로컬 계정 인증, GitHub OAuth, 관리자 페이지, 이메일 인증 기반 회원가입, SQLite 기반 사용자 저장소를 포함합니다.
 
 ## 실행 방법
 
@@ -9,7 +9,6 @@ Phase Vuln Coach는 랜딩 페이지, 로컬 계정 인증, GitHub OAuth, 관리
 루트 경로에서 `.env.example`을 복사해 `.env`를 만든 뒤 값을 채웁니다.
 
 ```env
-PORT=3000
 APP_BASE_URL=http://localhost:3000
 SESSION_SECRET=replace-with-a-long-random-secret
 
@@ -50,7 +49,6 @@ npm start
 
 ### App
 
-- `PORT`: 서버 포트
 - `APP_BASE_URL`: OAuth 콜백과 절대 URL 계산에 사용하는 기본 주소
 - `SESSION_SECRET`: 세션 서명 키. 운영 환경에서는 반드시 긴 난수 문자열 사용
 
@@ -95,23 +93,44 @@ Gmail은 일반 계정 비밀번호로 SMTP 로그인이 막힐 수 있습니다
 - 관리자 이메일 기반 회원 목록 조회 및 삭제
 - SQLite 기반 계정 저장
 
+## SQLite DB 및 스키마
+
+- 런타임 DB 파일: `data/phase-vuln-coach.sqlite`
+- 스키마 파일: `db/schema.sql`
+- 실제 초기화 코드: `lib/server/database.js`
+
+애플리케이션이 시작되면 `lib/server/database.js`가 `db/schema.sql`을 읽어 테이블과 인덱스를 생성합니다. `data/`는 `.gitignore`에 포함되어 있으므로 실제 DB 파일은 커밋되지 않고, 스키마만 Git에 포함됩니다.
+
+현재 포함된 테이블은 아래 두 개입니다.
+
+- `users`: 이메일 계정, GitHub 연동 정보, 인증 방식, 생성/수정 시각 저장
+- `email_verifications`: 이메일 인증 코드 해시와 만료 시각 저장
+
 ## 프로젝트 구조
 
 ```text
 .
-├─ server.js
+├─ app/
+│  ├─ api/
+│  ├─ admin/
+│  ├─ analysis/
+│  ├─ auth/
+│  ├─ dashboard/
+│  ├─ login/
+│  ├─ globals.css
+│  ├─ layout.js
+│  └─ page.js
+├─ components/
+├─ db/
+│  └─ schema.sql
 ├─ data/
-├─ src/
-│  ├─ assets/
-│  │  ├─ css/
-│  │  ├─ images/
-│  │  ├─ js/
-│  │  └─ video/
-│  ├─ pages/
+├─ lib/
+│  ├─ client/
 │  └─ server/
-│     ├─ app.js
-│     └─ database.js
+├─ public/
+│  └─ assets/
 ├─ .env.example
+├─ next.config.mjs
 └─ package.json
 ```
 
@@ -168,10 +187,10 @@ Gmail은 일반 계정 비밀번호로 SMTP 로그인이 막힐 수 있습니다
 2. 대시보드에서 GitHub 연동 진행
 3. 동일 GitHub 계정이 다른 사용자에 연결돼 있지 않으면 현재 계정에 연결
 
-## 현재 최적화 포인트
+## 현재 구조 메모
 
-- 정적 자산 경로를 `src/assets` 아래로 통일
-- 세션 기반 인증 상태와 관리자 권한 분리
-- 이메일 인증 완료 상태에 만료 시간 적용
-- 메인 페이지 로그아웃 실패 처리에서 브라우저 `alert` 제거
-- 서버 기본 보안 헤더 추가
+- 정적 자산은 `public/assets` 아래에서 `/assets/*` 경로로 제공합니다.
+- 인증과 관리자 기능은 Next.js Route Handler와 `lib/server` 유틸로 분리되어 있습니다.
+- SQLite 스키마는 `db/schema.sql`에 버전 관리되며, 런타임 DB 파일은 커밋되지 않습니다.
+- 이메일 인증 완료 상태에는 만료 시간이 적용됩니다.
+- 기본 보안 헤더는 `next.config.mjs`에서 설정합니다.

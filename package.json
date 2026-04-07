@@ -1,11 +1,12 @@
 {
   "name": "phase-vuln-coach",
   "version": "1.0.0",
-  "description": "Phase Vuln Coach landing page with GitHub OAuth login backend",
-  "main": "server.js",
+  "private": true,
+  "description": "Phase Vuln Coach Next.js application with local auth, GitHub OAuth, and admin tools",
   "scripts": {
-    "dev": "node --disable-warning=ExperimentalWarning --watch server.js",
-    "start": "node --disable-warning=ExperimentalWarning server.js"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
   },
   "repository": {
     "type": "git",
@@ -14,15 +15,15 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
   "bugs": {
     "url": "https://github.com/stack1245/KIT-Vibe-Coding-Contest/issues"
   },
   "homepage": "https://github.com/stack1245/KIT-Vibe-Coding-Contest#readme",
   "dependencies": {
     "dotenv": "^17.4.1",
-    "express": "^5.2.1",
-    "express-session": "^1.19.0",
-    "nodemailer": "^8.0.4"
+    "next": "^16.2.2",
+    "nodemailer": "^8.0.4",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
   }
 }

@@ -1,0 +1,102 @@
+.analysisHeroGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+  gap: 18px;
+  margin-top: 28px;
+}
+
+.analysisBadge {
+  display: inline-flex;
+  margin: 0 0 14px;
+  padding: 7px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-sub);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.analysisDropzoneBox {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  min-height: 220px;
+  margin-top: 18px;
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.02));
+  color: var(--text-sub);
+  text-align: center;
+}
+
+.analysisDropzoneBox strong {
+  color: var(--text-title);
+  font-size: 20px;
+}
+
+.analysisStepList {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.analysisStepList li {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.analysisStepList span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-title);
+  font-weight: 700;
+}
+
+.analysisStepList strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text-title);
+}
+
+.analysisStepList p {
+  margin: 0;
+  color: var(--text-sub);
+  line-height: 1.65;
+}
+
+.analysisChipGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.analysisChip {
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--text-title);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+@media (max-width: 960px) {
+  .analysisHeroGrid {
+    grid-template-columns: 1fr;
+  }
+}
