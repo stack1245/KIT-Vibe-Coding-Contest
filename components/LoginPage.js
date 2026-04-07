@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import AppHeader from './AppHeader';
+import PageVideoBackdrop from './PageVideoBackdrop';
 import styles from './LoginPage.module.css';
 
 const copy = {
@@ -201,26 +203,22 @@ export default function LoginPage() {
 
   return (
     <>
+      <AppHeader />
+
       <div className={cx('feedback-toast', feedback.message && 'is-visible', feedback.message && feedback.type)} aria-live="polite">
         {feedback.message}
       </div>
 
       <div className={styles['auth-shell']}>
+        <PageVideoBackdrop className={styles['auth-video-backdrop']} />
         <div className={styles['grid-overlay']} aria-hidden="true" />
 
         <main className={styles['auth-card']}>
           <header className={styles['auth-head']}>
-            <a className={styles['brand-link']} href="/" aria-label="메인 페이지로 이동">
-              <span className={styles['brand-mark']}>P</span>
-              <span>PHASE VULN COACH</span>
-            </a>
-
             <div className={styles['tab-list']} role="tablist" aria-label="인증 화면 전환">
               <button className={cx('auth-tab', tab === 'signin' && 'is-active')} type="button" onClick={() => updateTab('signin')}>로그인</button>
               <button className={cx('auth-tab', tab === 'signup' && 'is-active')} type="button" onClick={() => updateTab('signup')}>회원가입</button>
             </div>
-
-            <p className={styles['auth-intro']}>이메일 로그인과 GitHub 연동을 하나의 계정 흐름으로 관리할 수 있습니다.</p>
           </header>
 
           <section className={styles['oauth-area']} aria-label="간편 로그인">

@@ -21,6 +21,8 @@ export default function LandingPage() {
   const [toast, setToast] = useState('');
   const currentSectionRef = useRef(0);
   const isAnimatingRef = useRef(false);
+  const goToSectionRef = useRef(() => {});
+  const animationFrameRef = useRef(null);
 
   useEffect(() => {
     let ignore = false;
@@ -65,7 +67,7 @@ export default function LandingPage() {
         : 1 - Math.pow(-2 * time + 2, 3) / 2;
     };
 
-    const smoothScrollTo = (targetY, duration = 1200) => {
+    const smoothScrollTo = (targetY, duration = 760) => {
       const startY = window.pageYOffset;
       const diff = targetY - startY;
       const startTime = performance.now();
@@ -80,15 +82,16 @@ export default function LandingPage() {
         window.scrollTo(0, startY + diff * eased);
 
         if (progress < 1) {
-          window.requestAnimationFrame(step);
+          animationFrameRef.current = window.requestAnimationFrame(step);
           return;
         }
 
         isAnimatingRef.current = false;
+        animationFrameRef.current = null;
         onScroll();
       };
 
-      window.requestAnimationFrame(step);
+      animationFrameRef.current = window.requestAnimationFrame(step);
     };
 
     const goToSection = (index) => {
@@ -101,18 +104,12 @@ export default function LandingPage() {
 
       currentSectionRef.current = safeIndex;
       setActiveSection(safeIndex);
-      smoothScrollTo(element.offsetTop, 1200);
+      smoothScrollTo(element.offsetTop);
     };
 
+    goToSectionRef.current = goToSection;
+
     const handleWheelNavigation = (event) => {
-      if (window.innerWidth <= 820) {
-        return;
-      }
-
-      if (currentSectionRef.current === sections.length - 1) {
-        return;
-      }
-
       event.preventDefault();
 
       if (isAnimatingRef.current) {
@@ -148,11 +145,6 @@ export default function LandingPage() {
       if (event.key === 'Home') {
         event.preventDefault();
         goToSection(0);
-      }
-
-      if (event.key === 'End') {
-        event.preventDefault();
-        goToSection(sections.length - 1);
       }
     };
 
@@ -195,6 +187,10 @@ export default function LandingPage() {
 
     return () => {
       ignore = true;
+      goToSectionRef.current = () => {};
+      if (animationFrameRef.current) {
+        window.cancelAnimationFrame(animationFrameRef.current);
+      }
       observer.disconnect();
       window.removeEventListener('scroll', handleWindowScroll);
       window.removeEventListener('wheel', handleWheelNavigation);
@@ -231,22 +227,18 @@ export default function LandingPage() {
 
   function scrollToSection(id) {
     const targetIndex = sections.findIndex((section) => section.id === id);
-    const targetElement = document.getElementById(id);
-
-    if (targetIndex === -1 || !targetElement || isAnimatingRef.current) {
+    if (targetIndex === -1 || isAnimatingRef.current) {
       return;
     }
 
-    currentSectionRef.current = targetIndex;
-    setActiveSection(targetIndex);
-    targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    goToSectionRef.current(targetIndex);
   }
 
   return (
     <div className={styles['page-wrapper']}>
       <header className={styles.topbar}>
         <div className={styles['topbar-left']}>
-          <button className={styles.brand} type="button" aria-label="맨 위로 이동" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+          <button className={styles.brand} type="button" aria-label="맨 위로 이동" onClick={() => scrollToSection('hero')}>
             <img src="/assets/images/phase-logo.png" alt="Phase Vuln Coach" className={styles['brand-logo-image']} />
           </button>
 
@@ -308,7 +300,7 @@ export default function LandingPage() {
         ))}
       </aside>
 
-      <main>
+      <main className={styles.sections}>
         <section className={cx('section', 'hero')} id="hero">
           <div className={styles['hero-video-wrap']}>
             <video className={styles['hero-video']} autoPlay muted loop playsInline>
@@ -321,10 +313,12 @@ export default function LandingPage() {
           <div className={styles['hero-inner']}>
             <div className={styles['hero-content']}>
               <img src="/assets/images/phase-logo.png" alt="Phase logo" className={cx('hero-logo', 'reveal', 'from-bottom')} />
-              <h1 className={cx('hero-subtitle', 'reveal', 'from-bottom')}>Phase Vuln Coach</h1>
-              <p className={cx('hero-text', 'reveal', 'from-bottom')}>
-                현재 코드에 숨어있는 보안 취약점을 빠르게 탐지하고, 각 취약점이 왜 문제인지 공격 시나리오와 함께 쉽게 설명합니다.
-                거기서 끝나지 않고, 바로 적용할 수 있는 패치 방향까지 제안하는 개발자 중심 보안 코칭 플랫폼입니다.
+              <div className={cx('hero-subtitle', 'reveal', 'from-bottom')} style={{ transitionDelay: '0.1s' }}>
+                Phase Vuln Coach
+              </div>
+              <p className={cx('hero-text', 'reveal', 'from-bottom')} style={{ transitionDelay: '0.22s' }}>
+                현재 코드에 숨어있는 보안 취약점을 빠르게 탐지하고, 각 취약점이 왜 문제인지 공격 시나리오와 함께 알기 쉽게 설명해줍니다.
+                거기서 끝이 아니라 안전한 코드 패치 방법까지 제안해주는, 개발자를 위한 취약점 코칭 및 탐지 플랫폼입니다!
               </p>
             </div>
           </div>
@@ -332,7 +326,7 @@ export default function LandingPage() {
 
         <section className={styles.section} id="feature">
           <div className={styles['feature-top']}>
-            <p className={cx('eyebrow', 'reveal', 'from-left')}>What We Do</p>
+            <p className={cx('eyebrow', 'reveal', 'from-left')}>What We do</p>
             <div className={styles['feature-title-row']}>
               <h2 className={cx('section-title', 'reveal', 'from-left')}>Phase Vuln Coach는 여러 분야의 취약점을 점검합니다</h2>
               <div className={cx('feature-line', 'reveal', 'from-right')} />
@@ -345,7 +339,7 @@ export default function LandingPage() {
                 <img src="/assets/images/feature-system.png" alt="System Hacking" />
               </div>
               <h3>System Hacking</h3>
-              <p>메모리 손상, 실행 흐름 조작, 권한 상승 등 시스템 계층의 취약점을 분석합니다.</p>
+              <p>시스템 해킹 취약점 분석<br />메모리 손상, 실행 흐름 조작, 권한 상승 등</p>
             </article>
 
             <article className={cx('feature-card', 'feature-animate', 'feature-stagger-2')}>
@@ -353,7 +347,7 @@ export default function LandingPage() {
                 <img src="/assets/images/feature-web.png" alt="Web Hacking" />
               </div>
               <h3>Web Hacking</h3>
-              <p>입력 검증, 인증·인가, 세션, 서버 로직 등 웹 서비스 전반의 보안 약점을 진단합니다.</p>
+              <p>웹 서비스 취약점 진단<br />입력 검증, 인증/인가, 세션, 서버 로직 분석</p>
             </article>
 
             <article className={cx('feature-card', 'feature-animate', 'feature-stagger-3')}>
@@ -361,7 +355,7 @@ export default function LandingPage() {
                 <img src="/assets/images/feature-mobile.png" alt="Mobile Hacking" />
               </div>
               <h3>Mobile Hacking</h3>
-              <p>저장소, 통신, 코드 보호, 앱 동작 흐름을 중심으로 모바일 앱의 취약점을 점검합니다.</p>
+              <p>모바일 앱 보안 점검<br />저장소, 통신, 코드 보호, 앱 동작 흐름 분석</p>
             </article>
           </div>
         </section>
@@ -369,22 +363,22 @@ export default function LandingPage() {
         <section className={cx('section', 'ai-section')} id="ai">
           <div className={styles['ai-head']}>
             <h2 className={cx('ai-title', 'reveal', 'from-bottom')}>AI를 통해 더 빠르고 더 똑똑하게<br />사이버 보안 위협을 차단하세요.</h2>
-            <p className={cx('ai-subtext', 'reveal', 'from-bottom')}>
-              단순 탐지로 끝나는 것이 아니라 왜 위험한지, 어떻게 고쳐야 하는지, 다음에는 무엇을 조심해야 하는지까지
-              개발자 입장에서 이해하기 쉽게 정리해줍니다.
+            <p className={cx('ai-subtext', 'reveal', 'from-bottom')} style={{ transitionDelay: '0.12s' }}>
+              보안 점검을 받았어도 그 위험을 놓치거나 심각한 타이밍에 문제를 발견하면 위험합니다.
+              개발자가 보안 대응을 자연스럽게 익히고, 다음 코드에서는 같은 실수를 줄일 수 있도록 분석과 설명, 대응 방향까지 함께 제공합니다.
             </p>
           </div>
 
           <div className={styles['ai-grid']}>
             <div className={cx('ai-box', 'reveal', 'from-left')} />
             <div className={cx('ai-text-block', 'reveal', 'from-right')}>
-              <strong>우리 플랫폼은</strong> 빠른 취약점 탐지와 함께 실제 수정 포인트를 제안하고,
-              개발자가 보안 대응 패턴을 자연스럽게 익히도록 돕습니다.
+              <strong>우리 페이즈 취약점 코치 애플리케이션은</strong><br />빠르고 실용적인 취약점 진단 결과를 제공하고,
+              그에 맞는 개선 포인트와 학습 흐름까지 함께 제시합니다.
             </div>
 
             <div className={cx('ai-text-block', 'reveal', 'from-left')}>
-              취약점의 원인, 공격 시나리오, 대응 코드 방향을 한 흐름으로 제공해
-              보안 점검 결과가 곧바로 실무 개선으로 이어지도록 설계했습니다.
+              단순히 취약점을 찾는 데서 끝나는 것이 아니라, <strong>왜 위험한지</strong>, <strong>어떻게 고쳐야 하는지</strong>,
+              <strong>앞으로 비슷한 실수를 어떻게 피할지</strong>까지 개발자 눈높이에 맞춰 정리해 줍니다.
             </div>
             <div className={cx('ai-box', 'reveal', 'from-right')} />
           </div>
@@ -393,7 +387,7 @@ export default function LandingPage() {
         <section className={cx('section', 'team-section')} id="team">
           <div className={styles['team-head']}>
             <p className={cx('eyebrow', 'reveal', 'from-bottom')}>Developer Team</p>
-            <h2 className={cx('section-title', 'reveal', 'from-bottom')}>개발자 소개</h2>
+            <h2 className={cx('section-title', 'reveal', 'from-bottom')} style={{ marginBottom: 0 }}>개발자 소개</h2>
           </div>
 
           <div className={styles['team-list']}>

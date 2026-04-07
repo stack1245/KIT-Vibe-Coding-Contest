@@ -1,81 +1,133 @@
-import DashboardStyles from './DashboardStyles';
+import AnalysisUploadPanel from './AnalysisUploadPanel';
+import AppHeader from './AppHeader';
+import PageVideoBackdrop from './PageVideoBackdrop';
 import styles from './AnalysisPage.module.css';
 
 export default function AnalysisPage() {
   return (
-    <div className="dashboard-page">
-      <DashboardStyles />
-      <main className="dashboard-shell">
-        <header className="dashboard-head">
-          <a className="dashboard-home" href="/">Phase Vuln Coach</a>
-          <div className="dashboard-links">
-            <a href="/dashboard">프로필 보기</a>
+    <div className={styles.pageWrapper}>
+      <AppHeader />
+
+      <main className={styles.analysisPage}>
+        <PageVideoBackdrop className={styles.analysisBackdrop} />
+
+        <div className={styles.analysisInner}>
+          <p className={styles.eyebrow}>analysis workspace</p>
+
+          <div className={styles.pageTitleRow}>
+            <h1 className={styles.pageTitle}>취약점 분석 및 실습 환경 제공</h1>
+            <div className={styles.pageLine} />
           </div>
-        </header>
 
-        <section className="dashboard-card">
-          <p className="dashboard-eyebrow">Analysis</p>
-          <h1>파일 분석 워크스페이스</h1>
-          <p className="dashboard-subtext">정적 분석 기능을 붙이기 전 단계지만, 실제 제품 화면처럼 분석 흐름과 준비 상태를 한눈에 볼 수 있도록 정리했습니다.</p>
+          <p className={styles.pageDesc}>
+            프로젝트 파일을 업로드하면 취약점 분석 결과를 확인하고,
+            탐지된 문제에 맞는 실습 환경으로 바로 이어서 학습할 수 있습니다.
+          </p>
 
-          <div className={styles.analysisHeroGrid}>
-            <article className="dashboard-panel">
-              <p className={styles.analysisBadge}>준비 중</p>
-              <h2>분석 대상 업로드</h2>
-              <p className="dashboard-panel-text">차기 단계에서 소스 코드 압축 파일, 개별 소스 파일, 저장소 연결 입력을 받아 정적 분석 요청을 실행할 예정입니다.</p>
-              <div className={styles.analysisDropzoneBox}>
-                <strong>Upload Zone</strong>
-                <span>ZIP, JS, TS, PY, JAVA, CS 예정</span>
+          <AnalysisUploadPanel />
+
+          <section className={styles.subGrid}>
+            <article className={styles.contentCard}>
+              <div className={styles.cardHead}>
+                <h3>최근 분석 결과</h3>
+                <span>최근 실행 기준</span>
+              </div>
+
+              <div className={styles.resultList}>
+                <div className={styles.resultItem}>
+                  <div className={styles.resultTop}>
+                    <div className={styles.resultName}>SQL Injection 가능성 탐지</div>
+                    <div className={`${styles.severityBadge} ${styles.high}`}>high</div>
+                  </div>
+                  <div className={styles.resultText}>
+                    사용자 입력값이 검증 없이 쿼리에 직접 포함될 수 있습니다.
+                    파라미터 바인딩 또는 prepared statement로 분리하는 방식이 필요합니다.
+                  </div>
+                  <div className={styles.resultMeta}>src/api/userController.js · line 84 ~ 102</div>
+                </div>
+
+                <div className={styles.resultItem}>
+                  <div className={styles.resultTop}>
+                    <div className={styles.resultName}>하드코딩된 API Key 노출</div>
+                    <div className={`${styles.severityBadge} ${styles.medium}`}>medium</div>
+                  </div>
+                  <div className={styles.resultText}>
+                    민감한 키 값이 코드 안에 직접 포함되어 있습니다.
+                    환경 변수 또는 별도 secret 관리 방식으로 분리하는 편이 안전합니다.
+                  </div>
+                  <div className={styles.resultMeta}>config/app.py · line 12</div>
+                </div>
+
+                <div className={styles.resultItem}>
+                  <div className={styles.resultTop}>
+                    <div className={styles.resultName}>입력 길이 검증 부족</div>
+                    <div className={`${styles.severityBadge} ${styles.low}`}>low</div>
+                  </div>
+                  <div className={styles.resultText}>
+                    특정 입력 지점에서 허용 길이 제한이 명확하지 않습니다.
+                    예외 처리와 길이 검증을 추가하면 안정성이 좋아집니다.
+                  </div>
+                  <div className={styles.resultMeta}>forms/register.tsx · line 44 ~ 58</div>
+                </div>
+              </div>
+
+              <div className={styles.resultBottom}>
+                <div className={styles.miniChip}>총 12개 탐지</div>
+                <div className={styles.miniChip}>high 3개</div>
+                <div className={styles.miniChip}>medium 4개</div>
+                <div className={styles.miniChip}>low 5개</div>
               </div>
             </article>
 
-            <article className="dashboard-panel">
-              <h2>분석 파이프라인</h2>
-              <ul className={styles.analysisStepList}>
-                <li><span>1</span><div><strong>입력 수집</strong><p>파일 업로드 또는 저장소 경로 연결</p></div></li>
-                <li><span>2</span><div><strong>구문 및 패턴 분석</strong><p>언어별 룰과 취약점 패턴 매칭</p></div></li>
-                <li><span>3</span><div><strong>위험도 분류</strong><p>영향도와 악용 가능성을 기반으로 우선순위 산정</p></div></li>
-                <li><span>4</span><div><strong>패치 가이드 제안</strong><p>원인, 공격 시나리오, 수정 방향까지 결과화</p></div></li>
-              </ul>
-            </article>
-          </div>
-
-          <div className="dashboard-grid">
-            <article className="dashboard-panel">
-              <h2>지원 예정 입력 형식</h2>
-              <div className={styles.analysisChipGroup}>
-                <span className={styles.analysisChip}>GitHub Repository</span>
-                <span className={styles.analysisChip}>ZIP Upload</span>
-                <span className={styles.analysisChip}>Single File</span>
-                <span className={styles.analysisChip}>Batch Scan</span>
+            <article className={styles.contentCard}>
+              <div className={styles.cardHead}>
+                <h3>샌드박스 환경</h3>
+                <span>분석 후 자동 연결</span>
               </div>
-              <p className="dashboard-panel-text">프로젝트 단위 스캔과 개별 파일 빠른 점검을 모두 지원하는 방향으로 확장할 예정입니다.</p>
-            </article>
 
-            <article className="dashboard-panel">
-              <h2>우선 적용 예정 진단 항목</h2>
-              <ul className="dashboard-list">
-                <li><span>입력 검증</span><strong>Injection 계열</strong></li>
-                <li><span>인증/인가</span><strong>권한 우회 및 세션 처리</strong></li>
-                <li><span>저장 데이터</span><strong>민감 정보 노출</strong></li>
-                <li><span>구성 오류</span><strong>위험한 기본 설정</strong></li>
-              </ul>
-            </article>
+              <div className={styles.sandboxList}>
+                <div className={styles.sandboxItem}>
+                  <h4>시스템 해킹 실습 환경</h4>
+                  <p>
+                    메모리 손상, 입력 처리 실수, 권한 상승 같은 취약점을
+                    직접 재현해보는 실습 공간입니다.
+                  </p>
+                  <div className={styles.sandboxTags}>
+                    <div className={styles.miniChip}>System</div>
+                    <div className={styles.miniChip}>BOF</div>
+                    <div className={styles.miniChip}>권한 상승</div>
+                  </div>
+                </div>
 
-            <article className="dashboard-panel">
-              <h2>결과 화면 계획</h2>
-              <p className="dashboard-panel-text">분석 결과는 취약점 목록, 심각도 필터, 코드 위치, 공격 시나리오, 수정 가이드, 히스토리 비교까지 이어지도록 구성할 예정입니다.</p>
-              <div className="dashboard-actions">
-                <a className="dashboard-button secondary" href="/dashboard">프로필로 돌아가기</a>
+                <div className={styles.sandboxItem}>
+                  <h4>안드로이드 실습 환경</h4>
+                  <p>
+                    저장소 노출, 잘못된 컴포넌트 설정, 인증 우회 같은
+                    모바일 취약점을 단계별로 확인할 수 있습니다.
+                  </p>
+                  <div className={styles.sandboxTags}>
+                    <div className={styles.miniChip}>Android</div>
+                    <div className={styles.miniChip}>Intent</div>
+                    <div className={styles.miniChip}>Storage</div>
+                  </div>
+                </div>
+
+                <div className={styles.sandboxItem}>
+                  <h4>웹 애플리케이션 실습 환경</h4>
+                  <p>
+                    SQL Injection, XSS, 인증/인가 문제처럼
+                    분석 결과와 바로 연결되는 웹 취약점 실습 환경입니다.
+                  </p>
+                  <div className={styles.sandboxTags}>
+                    <div className={styles.miniChip}>Web</div>
+                    <div className={styles.miniChip}>SQLi</div>
+                    <div className={styles.miniChip}>XSS</div>
+                  </div>
+                </div>
               </div>
             </article>
-
-            <article className="dashboard-panel">
-              <h2>현재 상태</h2>
-              <p className="dashboard-panel-text">인증 보호, 화면 구조, 서비스 흐름 설명은 준비되어 있습니다. 다음 구현 단계는 실제 업로드 API와 분석 실행 엔진 연결입니다.</p>
-            </article>
-          </div>
-        </section>
+          </section>
+        </div>
       </main>
     </div>
   );

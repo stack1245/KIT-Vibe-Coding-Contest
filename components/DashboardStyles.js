@@ -8,6 +8,8 @@ export default function DashboardStyles() {
       }
 
       .dashboard-page {
+        position: relative;
+        overflow: hidden;
         min-height: 100vh;
         color: var(--text-main);
         font-family: Pretendard, 'SUIT', 'Noto Sans KR', sans-serif;
@@ -17,50 +19,42 @@ export default function DashboardStyles() {
           linear-gradient(to bottom, #040506, #090b0d 100%);
       }
 
+      .dashboard-video-backdrop,
+      .dashboard-video-backdrop video,
+      .page-video-overlay,
+      .page-video-fade {
+        position: absolute;
+        inset: 0;
+      }
+
+      .dashboard-video-backdrop {
+        z-index: 0;
+        overflow: hidden;
+      }
+
+      .dashboard-video-backdrop video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        filter: grayscale(100%) brightness(0.32) contrast(1.04);
+        transform: scale(1.05);
+      }
+
+      .page-video-overlay {
+        background:
+          linear-gradient(to bottom, rgba(1,1,2,0.22), rgba(1,1,2,0.58)),
+          linear-gradient(to right, rgba(255,255,255,0.035), rgba(0,0,0,0.2));
+      }
+
+      .page-video-fade {
+        background: radial-gradient(circle at center, rgba(255,255,255,0.08), rgba(0,0,0,0.22));
+      }
+
       .dashboard-shell {
+        position: relative;
+        z-index: 1;
         min-height: 100vh;
-        padding: 32px 28px 42px;
-      }
-
-      .dashboard-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 16px;
-        margin: 0 auto 28px;
-        max-width: 1160px;
-        padding: 14px 18px;
-        border: 1px solid rgba(255, 255, 255, 0.06);
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.028);
-        box-shadow: var(--shadow-md);
-        backdrop-filter: blur(16px);
-      }
-
-      .dashboard-home {
-        color: var(--text-title);
-        font-size: 18px;
-        font-weight: 800;
-        letter-spacing: -0.02em;
-      }
-
-      .dashboard-links {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        color: var(--text-sub);
-      }
-
-      .dashboard-links a {
-        padding: 10px 14px;
-        border: 1px solid transparent;
-        border-radius: 999px;
-      }
-
-      .dashboard-links a:hover {
-        color: var(--text-title);
-        border-color: rgba(255, 255, 255, 0.08);
-        background: rgba(255, 255, 255, 0.04);
+        padding: 110px 28px 42px;
       }
 
       .dashboard-card {
@@ -194,6 +188,18 @@ export default function DashboardStyles() {
       .dashboard-button.secondary {
         background: rgba(255, 255, 255, 0.03);
         color: var(--text-title);
+      }
+
+      .dashboard-button.disconnect {
+        background: rgba(190, 24, 24, 0.92);
+        border-color: rgba(248, 113, 113, 0.42);
+        color: #ffffff;
+        box-shadow: 0 12px 28px rgba(127, 29, 29, 0.34);
+      }
+
+      .dashboard-button.disconnect:hover:not(:disabled) {
+        background: rgba(220, 38, 38, 0.96);
+        border-color: rgba(252, 165, 165, 0.56);
       }
 
       .dashboard-button.danger {
@@ -336,13 +342,7 @@ export default function DashboardStyles() {
 
       @media (max-width: 820px) {
         .dashboard-shell {
-          padding: 18px;
-        }
-
-        .dashboard-head {
-          flex-direction: column;
-          align-items: flex-start;
-          border-radius: 28px;
+          padding: 92px 18px 18px;
         }
 
         .dashboard-grid {

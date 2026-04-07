@@ -2,19 +2,19 @@
 .feedback-toast.is-visible { opacity: 1; transform: translateY(0); }
 .feedback-toast.error { background: rgba(239, 68, 68, 0.12); border-color: rgba(248, 113, 113, 0.28); color: #fecaca; }
 .feedback-toast.success { background: rgba(16, 185, 129, 0.12); border-color: rgba(52, 211, 153, 0.28); color: #bbf7d0; }
-.auth-shell { position: relative; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 40px 20px; overflow: hidden; }
+.auth-shell { position: relative; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 116px 20px 40px; overflow: hidden; }
+.auth-video-backdrop, .auth-video-backdrop video, .auth-video-backdrop :global(.page-video-overlay), .auth-video-backdrop :global(.page-video-fade) { position: absolute; inset: 0; }
+.auth-video-backdrop { z-index: 0; overflow: hidden; }
+.auth-video-backdrop video { width: 100%; height: 100%; object-fit: cover; filter: grayscale(100%) brightness(0.18) contrast(1.04); transform: scale(1.05); }
 .auth-shell::before, .auth-shell::after { content: ''; position: absolute; border-radius: 999px; pointer-events: none; filter: blur(60px); opacity: 0.35; }
 .auth-shell::before { top: 8%; left: 50%; width: 18rem; height: 18rem; transform: translateX(-50%); background: radial-gradient(circle, rgba(255,255,255,0.16), transparent 68%); }
 .auth-shell::after { right: 8%; bottom: 10%; width: 14rem; height: 14rem; background: radial-gradient(circle, rgba(255,255,255,0.08), transparent 72%); }
-.grid-overlay { position: absolute; inset: 0; background-image: linear-gradient(to right, rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.02) 1px, transparent 1px); background-size: 72px 72px; opacity: 0.06; }
+.grid-overlay { position: absolute; inset: 0; z-index: 1; background-image: linear-gradient(to right, rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.02) 1px, transparent 1px); background-size: 72px 72px; opacity: 0.06; }
 .auth-card { position: relative; z-index: 10; display: flex; flex-direction: column; gap: 24px; width: 100%; max-width: 468px; min-height: 700px; padding: 30px; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 30px; background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04)); box-shadow: var(--shadow-lg); backdrop-filter: blur(22px); }
 .auth-head { display: flex; flex-direction: column; gap: 16px; text-align: center; }
-.brand-link { display: inline-flex; align-items: center; justify-content: center; gap: 12px; color: var(--text-sub); font-size: 13px; font-weight: 700; letter-spacing: 0.2em; }
-.brand-mark { display: inline-flex; align-items: center; justify-content: center; width: 42px; height: 42px; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; background: rgba(255,255,255,0.06); color: var(--text-title); box-shadow: inset 0 1px 0 rgba(255,255,255,0.06); }
 .tab-list { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 6px; border: 1px solid rgba(255,255,255,0.1); border-radius: 18px; background: rgba(255,255,255,0.03); }
 .auth-tab { border: none; border-radius: 12px; padding: 12px 16px; background: transparent; color: var(--text-sub); font-size: 14px; font-weight: 700; cursor: pointer; }
 .auth-tab.is-active { background: #ffffff; color: #000000; }
-.auth-intro { margin: 0; color: var(--text-sub); font-size: 13px; line-height: 1.6; }
 .oauth-area { display: flex; flex-direction: column; gap: 12px; padding: 18px; border: 1px solid rgba(255,255,255,0.06); border-radius: 22px; background: rgba(255,255,255,0.03); }
 .github-button, .submit-button { width: 100%; border-radius: 18px; padding: 14px 16px; font-size: 14px; font-weight: 700; cursor: pointer; }
 .github-button { display: inline-flex; align-items: center; justify-content: center; gap: 10px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.03); color: var(--text-title); }
@@ -45,7 +45,7 @@
 
 @media (max-width: 640px) {
   .feedback-toast { top: 12px; right: 12px; width: min(calc(100vw - 24px), 360px); }
-  .auth-shell { padding: 24px 14px; }
+  .auth-shell { padding: 96px 14px 24px; }
   .auth-card { min-height: 680px; padding: 22px; }
   .inline-field { grid-template-columns: 1fr; }
   .inline-action-button { min-height: 48px; }

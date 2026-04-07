@@ -1,14 +1,29 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import AppHeader from './AppHeader';
 import DashboardStyles from './DashboardStyles';
+import PageVideoBackdrop from './PageVideoBackdrop';
 import ConfirmDialog from './ui/ConfirmDialog';
 import Toast from './ui/Toast';
 import { fetchJson } from '../lib/client/fetch-json';
 
 function formatDate(value) {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString('ko-KR');
+  if (Number.isNaN(date.getTime())) {
+    return '-';
+  }
+
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  const hours = date.getHours();
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  const period = hours >= 12 ? '오후' : '오전';
+  const displayHour = hours % 12 || 12;
+
+  return `${year}. ${month}. ${day}. ${period} ${displayHour}:${minutes}:${seconds}`;
 }
 
 function formatAuthMethod(user) {
@@ -20,7 +35,10 @@ function formatAuthMethod(user) {
 export default function DashboardPage({ user, config }) {
   const [toast, setToast] = useState({ message: '', type: 'success' });
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [disconnectOpen, setDisconnectOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const canDisconnectGithub = user.githubConnected && user.hasPassword;
 
   const githubMessage = useMemo(() => {
     if (!config.enabled) {
@@ -28,11 +46,30 @@ export default function DashboardPage({ user, config }) {
     }
 
     if (user.githubConnected) {
-      return '이 계정은 이미 GitHub와 연결되어 있습니다.';
+      if (!user.hasPassword) {
+        return 'GitHub 단독 로그인 계정은 연결 해지를 할 수 없습니다.';
+      }
+
+      return '이 계정은 이미 GitHub와 연결되어 있으며 필요 시 연결 해지도 가능합니다.';
     }
 
     return '일반 회원가입 계정도 GitHub를 연결해 동일한 계정으로 사용할 수 있습니다.';
-  }, [config.enabled, user.githubConnected]);
+  }, [config.enabled, user.githubConnected, user.hasPassword]);
+
+  async function handleDisconnectGithub() {
+    setDisconnecting(true);
+
+    try {
+      await fetchJson('/api/auth/github-link', { method: 'DELETE' });
+      setToast({ message: 'GitHub 계정 연결이 해지되었습니다.', type: 'success' });
+      window.setTimeout(() => {
+        window.location.reload();
+      }, 700);
+    } catch (error) {
+      setToast({ message: error.message, type: 'error' });
+      setDisconnecting(false);
+    }
+  }
 
   async function handleDeleteAccount() {
     setDeleting(true);
@@ -52,15 +89,9 @@ export default function DashboardPage({ user, config }) {
   return (
     <div className="dashboard-page">
       <DashboardStyles />
+      <AppHeader />
+      <PageVideoBackdrop className="dashboard-video-backdrop" />
       <main className="dashboard-shell">
-        <header className="dashboard-head">
-          <a className="dashboard-home" href="/">Phase Vuln Coach</a>
-          <div className="dashboard-links">
-            <a href="/analysis">파일 분석</a>
-            {user.isAdmin ? <a href="/admin">관리자</a> : null}
-          </div>
-        </header>
-
         <section className="dashboard-card">
           <p className="dashboard-eyebrow">Account Overview</p>
           <h1>{user.name || user.login || '계정 정보'}</h1>
@@ -81,6 +112,7 @@ export default function DashboardPage({ user, config }) {
               <p className="dashboard-panel-text">{githubMessage}</p>
               <div className="dashboard-actions">
                 <button className="dashboard-button" type="button" disabled={!config.enabled || user.githubConnected} onClick={() => (window.location.href = config.linkUrl || '/auth/github?mode=link')}>GitHub 연동하기</button>
+                <button className="dashboard-button disconnect" type="button" disabled={!canDisconnectGithub || disconnecting} onClick={() => setDisconnectOpen(true)}>{disconnecting ? '해지 중...' : 'GitHub 계정 해지'}</button>
                 <a className="dashboard-button secondary" href="/analysis">파일 분석으로 이동</a>
               </div>
             </article>
@@ -105,6 +137,15 @@ export default function DashboardPage({ user, config }) {
         confirmLabel="탈퇴하기"
         onCancel={() => setConfirmOpen(false)}
         onConfirm={handleDeleteAccount}
+      />
+
+      <ConfirmDialog
+        open={disconnectOpen}
+        title="GitHub 연결 해지"
+        message="현재 계정에서 GitHub 연동 정보를 제거합니다. 이후에는 이메일 로그인으로만 접근할 수 있습니다."
+        confirmLabel="해지하기"
+        onCancel={() => setDisconnectOpen(false)}
+        onConfirm={handleDisconnectGithub}
       />
     </div>
   );

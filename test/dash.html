@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Phase Vuln Coach - Analysis</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      word-break: keep-all;
+    }
+
+    :root {
+      --bg-main: #010101;
+      --bg-section: #030304;
+      --bg-section-2: #070709;
+      --bg-card: rgba(255, 255, 255, 0.018);
+      --bg-card-hover: rgba(255, 255, 255, 0.03);
+      --line: rgba(255, 255, 255, 0.045);
+
+      --text-title: #d8dbe0;
+      --text-main: #c4c9d1;
+      --text-sub: #9fa6b0;
+      --text-soft: #777f8a;
+
+      --shadow: rgba(0, 0, 0, 0.58);
+    }
+
+    html, body {
+      width: 100%;
+      min-height: 100%;
+      font-family: "Pretendard", "Noto Sans KR", Arial, sans-serif;
+      background: #000;
+      color: var(--text-main);
+    }
+
+    body {
+      overflow-x: hidden;
+      background:
+        radial-gradient(circle at center top, rgba(255,255,255,0.01), transparent 20%),
+        linear-gradient(to bottom, #000000, #020203 35%, #050507 65%, #08080a 100%);
+    }
+
+    a {
+      text-decoration: none;
+      color: inherit;
+    }
+
+    img {
+      display: block;
+      max-width: 100%;
+    }
+
+    .page-wrapper {
+      width: 100%;
+      position: relative;
+    }
+
+    .topbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 28px;
+      background: rgba(1, 1, 2, 0.88);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+      z-index: 1000;
+    }
+
+    .topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      min-width: 0;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .brand-logo-image {
+      width: 78px;
+      height: auto;
+      object-fit: contain;
+      filter:
+        grayscale(100%)
+        brightness(0)
+        invert(0.94)
+        drop-shadow(0 0 8px rgba(255,255,255,0.08));
+      opacity: 0.95;
+      transition: transform 0.25s ease, opacity 0.25s ease;
+    }
+
+    .brand:hover .brand-logo-image {
+      transform: scale(1.04);
+      opacity: 1;
+    }
+
+    .menu-left,
+    .menu-right {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    .menu-left {
+      color: var(--text-sub);
+    }
+
+    .menu-right {
+      color: var(--text-sub);
+      justify-content: flex-end;
+      flex-shrink: 0;
+    }
+
+    .menu-left a,
+    .menu-right a {
+      position: relative;
+      transition: color 0.25s ease;
+      white-space: nowrap;
+    }
+
+    .menu-left a:hover,
+    .menu-right a:hover {
+      color: var(--text-title);
+    }
+
+    .menu-left a::after,
+    .menu-right a::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      bottom: -5px;
+      width: 0;
+      height: 1px;
+      background: rgba(214,217,223,0.72);
+      transition: width 0.3s ease;
+    }
+
+    .menu-left a:hover::after,
+    .menu-right a:hover::after {
+      width: 100%;
+    }
+
+    .analysis-page {
+      position: relative;
+      min-height: 100vh;
+      padding-top: 72px;
+      overflow: hidden;
+      isolation: isolate;
+      background:
+        radial-gradient(circle at center, rgba(255,255,255,0.012), transparent 35%),
+        linear-gradient(to bottom, #000000, #020203 55%, #070709);
+    }
+
+    .hero-video-wrap {
+      position: absolute;
+      inset: 0;
+      z-index: -3;
+      overflow: hidden;
+    }
+
+    .hero-video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      filter: grayscale(100%) brightness(0.18) contrast(1.08);
+      transform: scale(1.05);
+    }
+
+    .hero-dark-overlay {
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(to bottom, rgba(1,1,2,0.20), rgba(1,1,2,0.58)),
+        linear-gradient(to right, rgba(255,255,255,0.02), rgba(0,0,0,0.28));
+      z-index: -2;
+    }
+
+    .hero-fade {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(circle at center, rgba(255,255,255,0.04), rgba(0,0,0,0.28));
+      z-index: -1;
+    }
+
+    .analysis-inner {
+      width: 100%;
+      max-width: 1220px;
+      margin: 0 auto;
+      padding: 56px 28px 80px;
+    }
+
+    .eyebrow {
+      font-size: 12px;
+      text-transform: lowercase;
+      letter-spacing: 0.14em;
+      color: var(--text-soft);
+      margin-bottom: 14px;
+    }
+
+    .page-title-row {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+
+    .page-title {
+      font-size: clamp(28px, 4vw, 54px);
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      line-height: 1.18;
+      color: var(--text-title);
+      text-shadow:
+        0 0 10px rgba(255,255,255,0.03),
+        0 0 20px rgba(255,255,255,0.02);
+    }
+
+    .page-line {
+      flex: 1;
+      min-width: 120px;
+      height: 1px;
+      background: linear-gradient(to right, rgba(255,255,255,0.08), rgba(214,217,223,0.42));
+      opacity: 0.9;
+    }
+
+    .page-desc {
+      max-width: 860px;
+      font-size: 15px;
+      line-height: 1.9;
+      color: var(--text-sub);
+      margin-bottom: 44px;
+    }
+
+    .upload-panel {
+      width: 100%;
+      min-height: 430px;
+      border-radius: 28px;
+      border: 1px solid rgba(255,255,255,0.055);
+      background:
+        linear-gradient(to bottom, rgba(255,255,255,0.015), rgba(255,255,255,0.01)),
+        rgba(255,255,255,0.012);
+      box-shadow: 0 20px 48px var(--shadow);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px;
+      margin-bottom: 34px;
+      transition:
+        transform 0.28s ease,
+        background 0.28s ease,
+        border-color 0.28s ease,
+        box-shadow 0.28s ease;
+    }
+
+    .upload-panel:hover {
+      transform: translateY(-3px);
+      background:
+        linear-gradient(to bottom, rgba(255,255,255,0.024), rgba(255,255,255,0.012)),
+        rgba(255,255,255,0.018);
+      border-color: rgba(255,255,255,0.085);
+      box-shadow: 0 26px 58px rgba(0,0,0,0.62);
+    }
+
+    .upload-box {
+      width: 100%;
+      max-width: 620px;
+      text-align: center;
+    }
+
+    .upload-icon {
+      width: fit-content;
+      margin: 0 auto 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .upload-icon img {
+      width: 118px;
+      height: 118px;
+      object-fit: contain;
+      filter:
+        brightness(0) invert(1)
+        drop-shadow(0 0 10px rgba(255,255,255,0.32))
+        drop-shadow(0 0 24px rgba(255,255,255,0.22))
+        drop-shadow(0 0 48px rgba(255,255,255,0.14));
+      opacity: 0.96;
+      transition: transform 0.28s ease, filter 0.28s ease, opacity 0.28s ease;
+    }
+
+    .upload-panel:hover .upload-icon img {
+      transform: scale(1.05);
+      filter:
+        brightness(0) invert(1)
+        drop-shadow(0 0 12px rgba(255,255,255,0.42))
+        drop-shadow(0 0 30px rgba(255,255,255,0.28))
+        drop-shadow(0 0 64px rgba(255,255,255,0.18));
+      opacity: 1;
+    }
+
+    .upload-title {
+      font-size: clamp(24px, 2.2vw, 34px);
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      color: var(--text-title);
+      margin-bottom: 12px;
+    }
+
+    .upload-desc {
+      font-size: 15px;
+      line-height: 1.85;
+      color: var(--text-sub);
+      margin-bottom: 26px;
+    }
+
+    .upload-actions {
+      display: flex;
+      gap: 14px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .ghost-btn,
+    .solid-btn {
+      min-width: 146px;
+      height: 48px;
+      padding: 0 18px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.02);
+      color: var(--text-title);
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition:
+        transform 0.24s ease,
+        background 0.24s ease,
+        border-color 0.24s ease,
+        color 0.24s ease;
+    }
+
+    .solid-btn {
+      background: rgba(255,255,255,0.06);
+    }
+
+    .ghost-btn:hover,
+    .solid-btn:hover {
+      transform: translateY(-1px);
+      background: rgba(255,255,255,0.05);
+      border-color: rgba(255,255,255,0.13);
+    }
+
+    .sub-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 28px;
+    }
+
+    .content-card {
+      min-height: 460px;
+      border-radius: 24px;
+      background: rgba(255,255,255,0.018);
+      border: 1px solid rgba(255,255,255,0.05);
+      box-shadow: 0 16px 40px var(--shadow);
+      padding: 28px 26px;
+      transition:
+        transform 0.28s ease,
+        background 0.28s ease,
+        border-color 0.28s ease,
+        box-shadow 0.28s ease;
+    }
+
+    .content-card:hover {
+      transform: translateY(-3px);
+      background: rgba(255,255,255,0.03);
+      border-color: rgba(255,255,255,0.09);
+      box-shadow: 0 22px 52px rgba(0,0,0,0.62);
+    }
+
+    .card-head {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 24px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.045);
+    }
+
+    .card-head h3 {
+      font-size: 24px;
+      letter-spacing: -0.03em;
+      color: var(--text-title);
+    }
+
+    .card-head span {
+      font-size: 13px;
+      color: var(--text-soft);
+    }
+
+    .result-list {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+
+    .result-item {
+      padding: 16px 16px 15px;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,0.045);
+      background: rgba(255,255,255,0.017);
+      transition: background 0.24s ease, border-color 0.24s ease, transform 0.24s ease;
+    }
+
+    .result-item:hover {
+      background: rgba(255,255,255,0.03);
+      border-color: rgba(255,255,255,0.08);
+      transform: translateY(-2px);
+    }
+
+    .result-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .result-name {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-title);
+      letter-spacing: -0.02em;
+    }
+
+    .severity-badge {
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      white-space: nowrap;
+      color: #ffffff;
+    }
+
+    .severity-badge.high {
+      background: #dc2626;
+      border: 1px solid #ef4444;
+      box-shadow: 0 0 12px rgba(220, 38, 38, 0.28);
+    }
+
+    .severity-badge.medium {
+      background: #ca8a04;
+      border: 1px solid #eab308;
+      box-shadow: 0 0 12px rgba(234, 179, 8, 0.24);
+    }
+
+    .severity-badge.low {
+      background: #16a34a;
+      border: 1px solid #22c55e;
+      box-shadow: 0 0 12px rgba(34, 197, 94, 0.24);
+    }
+
+    .result-text {
+      color: var(--text-sub);
+      font-size: 14px;
+      line-height: 1.8;
+    }
+
+    .result-meta {
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--text-soft);
+    }
+
+    .result-bottom {
+      margin-top: 18px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .mini-chip {
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.025);
+      border: 1px solid rgba(255,255,255,0.05);
+      color: var(--text-sub);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .sandbox-list {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .sandbox-item {
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,0.045);
+      background: rgba(255,255,255,0.017);
+      padding: 18px 16px;
+      transition: background 0.24s ease, border-color 0.24s ease, transform 0.24s ease;
+    }
+
+    .sandbox-item:hover {
+      background: rgba(255,255,255,0.03);
+      border-color: rgba(255,255,255,0.085);
+      transform: translateY(-2px);
+    }
+
+    .sandbox-item h4 {
+      font-size: 16px;
+      color: var(--text-title);
+      margin-bottom: 8px;
+      letter-spacing: -0.02em;
+    }
+
+    .sandbox-item p {
+      font-size: 14px;
+      line-height: 1.8;
+      color: var(--text-sub);
+      margin-bottom: 10px;
+    }
+
+    .sandbox-tags {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    @media (max-width: 980px) {
+      .sub-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 820px) {
+      .topbar {
+        padding: 0 16px;
+      }
+
+      .topbar-left {
+        gap: 14px;
+      }
+
+      .brand-logo-image {
+        width: 68px;
+      }
+
+      .menu-left,
+      .menu-right {
+        gap: 10px;
+        font-size: 13px;
+      }
+
+      .analysis-inner {
+        padding: 42px 20px 60px;
+      }
+
+      .upload-panel {
+        min-height: 360px;
+        padding: 28px 20px;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .topbar {
+        height: 68px;
+      }
+
+      .menu-left {
+        display: none;
+      }
+
+      .analysis-page {
+        padding-top: 68px;
+      }
+
+      .upload-icon img {
+        width: 92px;
+        height: 92px;
+      }
+
+      .page-desc,
+      .upload-desc,
+      .result-text,
+      .sandbox-item p {
+        font-size: 14px;
+      }
+
+      .content-card {
+        padding: 22px 18px;
+      }
+
+      .card-head h3 {
+        font-size: 21px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page-wrapper">
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="brand">
+          <img src="phase.png" alt="페이즈 로고" class="brand-logo-image">
+        </div>
+
+        <nav class="menu-left">
+          <a href="#">홈</a>
+          <a href="#">서비스</a>
+          <a href="#">소개</a>
+          <a href="#">개발자</a>
+        </nav>
+      </div>
+
+      <nav class="menu-right">
+        <a href="#">로그아웃</a>
+        <a href="#">마이페이지</a>
+      </nav>
+    </header>
+
+    <main class="analysis-page">
+      <div class="hero-video-wrap">
+        <video class="hero-video" autoplay muted loop playsinline>
+          <source src="background.mp4" type="video/mp4">
+        </video>
+        <div class="hero-dark-overlay"></div>
+        <div class="hero-fade"></div>
+      </div>
+
+      <div class="analysis-inner">
+        <div class="eyebrow">analysis workspace</div>
+
+        <div class="page-title-row">
+          <h1 class="page-title">취약점 분석 및 실습 환경 제공</h1>
+          <div class="page-line"></div>
+        </div>
+
+        <p class="page-desc">
+          프로젝트 파일을 업로드하면 취약점 분석 결과를 확인하고,
+          탐지된 문제에 맞는 실습 환경으로 바로 이어서 학습할 수 있습니다.
+        </p>
+
+        <section class="upload-panel">
+          <div class="upload-box">
+            <div class="upload-icon">
+              <img src="upload.png" alt="업로드 아이콘">
+            </div>
+            <h2 class="upload-title">솔루션할 파일을 올려주세요</h2>
+            <p class="upload-desc">
+              C, C++, Python, 웹 프로젝트, 모바일 프로젝트 등 분석할 파일을 업로드하면
+              자동으로 취약점을 탐지하고 결과와 함께 실습 가능한 환경까지 연결합니다.
+            </p>
+
+            <div class="upload-actions">
+              <button class="solid-btn">파일 업로드</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="sub-grid">
+          <article class="content-card">
+            <div class="card-head">
+              <h3>최근 분석 결과</h3>
+              <span>최근 실행 기준</span>
+            </div>
+
+            <div class="result-list">
+              <div class="result-item">
+                <div class="result-top">
+                  <div class="result-name">SQL Injection 가능성 탐지</div>
+                  <div class="severity-badge high">high</div>
+                </div>
+                <div class="result-text">
+                  사용자 입력값이 검증 없이 쿼리에 직접 포함될 수 있습니다.
+                  파라미터 바인딩 또는 prepared statement로 분리하는 방식이 필요합니다.
+                </div>
+                <div class="result-meta">src/api/userController.js · line 84 ~ 102</div>
+              </div>
+
+              <div class="result-item">
+                <div class="result-top">
+                  <div class="result-name">하드코딩된 API Key 노출</div>
+                  <div class="severity-badge medium">medium</div>
+                </div>
+                <div class="result-text">
+                  민감한 키 값이 코드 안에 직접 포함되어 있습니다.
+                  환경 변수 또는 별도 secret 관리 방식으로 분리하는 편이 안전합니다.
+                </div>
+                <div class="result-meta">config/app.py · line 12</div>
+              </div>
+
+              <div class="result-item">
+                <div class="result-top">
+                  <div class="result-name">입력 길이 검증 부족</div>
+                  <div class="severity-badge low">low</div>
+                </div>
+                <div class="result-text">
+                  특정 입력 지점에서 허용 길이 제한이 명확하지 않습니다.
+                  예외 처리와 길이 검증을 추가하면 안정성이 좋아집니다.
+                </div>
+                <div class="result-meta">forms/register.tsx · line 44 ~ 58</div>
+              </div>
+            </div>
+
+            <div class="result-bottom">
+              <div class="mini-chip">총 12개 탐지</div>
+              <div class="mini-chip">high 3개</div>
+              <div class="mini-chip">medium 4개</div>
+              <div class="mini-chip">low 5개</div>
+            </div>
+          </article>
+
+          <article class="content-card">
+            <div class="card-head">
+              <h3>샌드박스 환경</h3>
+              <span>분석 후 자동 연결</span>
+            </div>
+
+            <div class="sandbox-list">
+              <div class="sandbox-item">
+                <h4>시스템 해킹 실습 환경</h4>
+                <p>
+                  메모리 손상, 입력 처리 실수, 권한 상승 같은 취약점을
+                  직접 재현해보는 실습 공간입니다.
+                </p>
+                <div class="sandbox-tags">
+                  <div class="mini-chip">System</div>
+                  <div class="mini-chip">BOF</div>
+                  <div class="mini-chip">권한 상승</div>
+                </div>
+              </div>
+
+              <div class="sandbox-item">
+                <h4>안드로이드 실습 환경</h4>
+                <p>
+                  저장소 노출, 잘못된 컴포넌트 설정, 인증 우회 같은
+                  모바일 취약점을 단계별로 확인할 수 있습니다.
+                </p>
+                <div class="sandbox-tags">
+                  <div class="mini-chip">Android</div>
+                  <div class="mini-chip">Intent</div>
+                  <div class="mini-chip">Storage</div>
+                </div>
+              </div>
+
+              <div class="sandbox-item">
+                <h4>웹 애플리케이션 실습 환경</h4>
+                <p>
+                  SQL Injection, XSS, 인증/인가 문제처럼
+                  분석 결과와 바로 연결되는 웹 취약점 실습 환경입니다.
+                </p>
+                <div class="sandbox-tags">
+                  <div class="mini-chip">Web</div>
+                  <div class="mini-chip">SQLi</div>
+                  <div class="mini-chip">XSS</div>
+                </div>
+              </div>
+            </div>
+          </article>
+        </section>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

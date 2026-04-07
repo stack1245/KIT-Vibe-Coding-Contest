@@ -8,7 +8,20 @@ import { fetchJson } from '../lib/client/fetch-json';
 
 function formatDate(value) {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString('ko-KR');
+  if (Number.isNaN(date.getTime())) {
+    return '-';
+  }
+
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  const hours = date.getHours();
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  const period = hours >= 12 ? '오후' : '오전';
+  const displayHour = hours % 12 || 12;
+
+  return `${year}. ${month}. ${day}. ${period} ${displayHour}:${minutes}:${seconds}`;
 }
 
 function formatAuthMethod(user) {
