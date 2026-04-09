@@ -7,8 +7,8 @@ import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
 
-const ANALYSIS_TIMEOUT_MS = 18 * 60 * 1000;
-const MIN_ANALYSIS_DURATION_MS = 4 * 60 * 1000;
+const ANALYSIS_TIMEOUT_MS = 6 * 60 * 1000;
+const MIN_ANALYSIS_DURATION_MS = 0;
 const MAX_TEXT_BYTES = 320 * 1024;
 const MAX_TEXT_FILES = 220;
 const MAX_BINARY_FILES = 96;
@@ -1255,78 +1255,36 @@ export async function prepareCodexAnalysisWorkspace(acceptedFiles) {
   }
 }
 
-function buildCodexReconPrompt({ manifest }) {
+function buildCodexAnalysisPrompt({ manifest }) {
   return [
-    'You are performing a deep security investigation for an educational vulnerability-analysis product.',
+    'You are generating a final security report for an educational vulnerability-analysis product.',
     'The current working directory contains the uploaded files and extracted archives.',
-    'Analyze this like a patient CTF solver or security researcher, not like a fast classifier.',
-    'Spend significant effort reconstructing the real runtime before deciding what is code, what is documentation, and what is irrelevant.',
-    'Do not stop after the first suspicious string. Keep digging until you understand the executable paths, inputs, sinks, state transitions, and trust boundaries.',
-    'Inspect source, configs, scripts, archives, and binaries. For binaries, use strings/readelf/objdump when needed.',
+    'Read the codebase broadly and deeply before answering. Do not stop after the first obvious issue.',
+    'First identify the real runtime entrypoints, executable components, request handlers, background jobs, and binary targets before deciding what the service actually does.',
+    'Inspect source, configs, scripts, and binaries. For binaries, use strings/readelf/objdump when needed.',
     'Treat the upload as a real production service, not as a challenge or demo.',
-    'You must first build a runtime map: identify entrypoints, handlers, workers, background jobs, imported modules, archive contents, and binaries that are actually relevant.',
-    'A txt or md file may still contain real source code. Decide based on structure, imports, handlers, entrypoints, and runtime behavior, not file extension alone.',
-    'A README, tutorial, test, fixture, sample payload, rule table, scanner signature, or explanatory prose is not vulnerability evidence unless it is itself the real executable logic.',
-    'If a project contains security tooling, analyzers, or vulnerability examples, do not confuse those examples with the target service. Prove runtime relevance.',
-    'Do the investigation deeply, but keep the written output compact and structured. Do not spend time on polished prose.',
-    'Respond in Korean with JSON only.',
-    JSON.stringify({
-      schema: {
-        runtimeMap: ['string'],
-        executableFiles: [
-          {
-            path: 'string',
-            why: 'string',
-          },
-        ],
-        nonRuntimeFiles: [
-          {
-            path: 'string',
-            why: 'string',
-          },
-        ],
-        attackSurfaces: ['string'],
-        candidateVulnerabilitiesNeedingProof: ['string'],
-        unresolvedAssumptions: ['string'],
-      },
-      constraints: [
-        'Keep runtimeMap to at most 12 items',
-        'Keep executableFiles to at most 20 items',
-        'Keep nonRuntimeFiles to at most 12 items',
-        'Keep attackSurfaces to at most 12 items',
-        'Keep candidateVulnerabilitiesNeedingProof to at most 12 items',
-        'Keep unresolvedAssumptions to at most 10 items',
-        'Prefer short factual phrases over long narrative paragraphs',
-      ],
-      uploadedFiles: manifest,
-    }, null, 2),
-  ].join('\n\n');
-}
-
-function buildCodexFinalReportPrompt({ manifest, reconnaissance }) {
-  return [
-    'You are generating the final security report for an educational vulnerability-analysis product.',
-    'The current working directory contains the uploaded files and extracted archives.',
-    'Use the reconnaissance notes below as a starting point, but verify them against the code and binaries before concluding.',
-    'Analyze this like a careful CTF solver. Reconstruct the runtime, follow imports and handlers, inspect binaries, and verify exploitability before claiming any vulnerability.',
-    'A txt or md file may still be real source code if its structure proves it is part of the executable logic. Do not decide based on extension alone.',
-    'Do not use README prose, tutorial text, tests, fixtures, examples, sample payloads, rule tables, scanner signatures, or explanatory comments as vulnerability evidence unless they are themselves the real executable path.',
-    'Only report vulnerabilities that are directly supported by runtime code or binary evidence you inspected.',
-    'If a vulnerability is only suspected, exclude it from findings and prefer recommendation mode.',
-    'Do not combine unrelated files into one exploit path. You must be able to explain the real source-to-sink or state-corruption path.',
-    'For command injection, require a real command sink plus attacker-controlled input reaching it.',
-    'For SQL/NoSQL injection, require a real query sink plus attacker-controlled input that changes query structure or semantics.',
-    'For XSS, require real attacker-controlled content reaching an HTML/script rendering sink.',
-    'For memory-corruption findings such as FSOP, Heap Corruption, Buffer Overflow, Format String, or Arbitrary Write, require native code or binary evidence.',
-    'Treat the uploaded program as a service and describe it from the user or operator point of view.',
-    'The application summary must say what the service does in practice, such as "이 서비스는 ..." and "사용자는 ...할 수 있다".',
-    'Do not explain source code, internal logic, architecture, runtime reconstruction, files, or how you analyzed the program in applicationReport.',
+    'Only report vulnerabilities that are directly supported by the code or binary evidence you inspected.',
+    'If a vulnerability is only suspected, exclude it from findings.',
+    'Prefer recommendation mode over vulnerability mode when evidence is partial, split across unrelated files, or depends on guessing hidden behavior.',
+    'Use documentation, comments, tests, fixtures, examples, sample payloads, tutorial snippets, regex tables, detection rules, and prose only as background context, never as vulnerability evidence.',
+    'Do not treat vulnerability names, exploit examples, placeholder secrets, test credentials, regex patterns, or scanner rule definitions as proof of a real issue.',
+    'Do not use README, Markdown, plain text notes, stylesheets, snapshots, or test-only files as the primary evidence location for a finding.',
+    'If the project contains security tooling, analyzers, rule engines, upload filters, or educational examples, treat those as metadata unless the vulnerable runtime path itself is proven.',
+    'Prefer exact vulnerability names such as FSOP, Arbitrary Write, XSS, SQL Injection, NoSQL Injection, Buffer Overflow, Command Injection, Path Traversal, Heap Corruption, Hardcoded Secret.',
+    'Pay special attention to SQL/ORM query construction and MongoDB/Mongoose style query objects.',
+    'If user input is concatenated into SQL, classify it as SQL Injection when directly supported by code.',
+    'If user input is passed into MongoDB/Mongoose filters, operators, or query objects in a way that can alter query semantics, classify it as NoSQL Injection when directly supported by code.',
+    'A vulnerability finding is valid only when the source of attacker-controlled input and the dangerous sink are both visible in real runtime code or binary behavior.',
+    'Prefer evidence where the source and sink appear in the same file, same function, same handler, or a clearly traceable call chain. Do not combine unrelated files into one exploit path.',
+    'For command injection, require a real command-execution sink plus user-controlled input reaching that sink in executable code.',
+    'For SQL injection and NoSQL injection, require a real query sink plus attacker-controlled values affecting query structure or semantics in executable code.',
+    'For XSS, require real user-controlled content reaching an HTML or script rendering sink in executable runtime code.',
+    'For memory-corruption findings such as FSOP, Heap Corruption, Buffer Overflow, Format String, or Arbitrary Write, require native code or real binary evidence. Never infer these from web app text, docs, CSS, or scanner rules.',
+    'The application summary must describe service logic only, not how you analyzed it.',
     'For each finding, include a real file path summary and a codeLocation snippet. If source code exists, use source code. Only use C-style pseudocode when source truly does not exist.',
     'Each codeLocation must be a verbatim snippet from the cited runtime file or binary-derived pseudocode tied to the cited binary. If you cannot cite an exact snippet, discard the finding.',
     'Write the final report in Korean.',
     'Respond with JSON only.',
-    'Reconnaissance notes:',
-    reconnaissance || 'No reconnaissance notes were produced.',
     JSON.stringify({
       schema: {
         title: 'string',
@@ -1348,8 +1306,7 @@ function buildCodexFinalReportPrompt({ manifest, reconnaissance }) {
       },
       constraints: [
         'title must end with "서비스"',
-        'applicationReport must describe what the service does in practice from the user perspective',
-        'applicationReport must not mention analysis, source code, internal logic, runtime reconstruction, or file names',
+        'applicationReport must describe what the service does in practice',
         'findings must contain only fact-checked vulnerabilities or concrete hardening recommendations',
         'explanation/detail/remediation should be educational, detailed, and easy to understand',
       ],
@@ -1358,16 +1315,22 @@ function buildCodexFinalReportPrompt({ manifest, reconnaissance }) {
   ].join('\n\n');
 }
 
-async function runCodexExecPass({
-  workspaceRoot,
-  outputFile,
-  prompt,
-  onProgress,
-  passLabel = 'codex-pass',
-  stage = '취약점 분석 중',
-  progressPercent = 62,
-  timeoutMs = 5 * 60 * 1000,
-}) {
+async function analyzeWithCodexExec({ acceptedFiles, onProgress }) {
+  if (!String(process.env.CODEX_HOME || process.env.HOME || '').trim()) {
+    return null;
+  }
+
+  if (acceptedFiles.some((file) => detectArchiveExtension(file.originalName))) {
+    onProgress?.({
+      stage: '내용 분석 중',
+      progressPercent: 40,
+      message: '압축 업로드를 해제해 내부 파일까지 심층 분석하고 있습니다.',
+    });
+  }
+
+  const { workspaceRoot, manifest } = await prepareCodexAnalysisWorkspace(acceptedFiles);
+  const outputFile = path.join(workspaceRoot, 'analysis-report.json');
+  const prompt = buildCodexAnalysisPrompt({ manifest });
   const args = [
     'exec',
     '--skip-git-repo-check',
@@ -1389,151 +1352,65 @@ async function runCodexExecPass({
 
   args.push('-');
 
-  await new Promise((resolve, reject) => {
-    const progressLines = [];
-    const child = spawn('codex', args, {
-      cwd: workspaceRoot,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      env: process.env,
-    });
-    const timer = setTimeout(() => {
-      child.kill('SIGTERM');
-      const recentProgress = progressLines.slice(-8).join(' | ');
-      reject(new Error(`${passLabel}: timeout after ${timeoutMs}ms${recentProgress ? ` | recent=${recentProgress}` : ''}`));
-    }, timeoutMs);
-
-    const handleProgressChunk = (chunk) => {
-      const lines = String(chunk || '')
-        .split('\n')
-        .map((line) => sanitizeCodexProgressLine(line))
-        .filter(Boolean);
-
-      const latestLine = lines.at(-1);
-      if (!latestLine) {
-        return;
-      }
-
-      progressLines.push(latestLine);
-      if (progressLines.length > 24) {
-        progressLines.splice(0, progressLines.length - 24);
-      }
-
-      onProgress?.({
-        stage,
-        progressPercent,
-        message: latestLine,
-      });
-    };
-
-    child.stdout?.on('data', handleProgressChunk);
-    child.stderr?.on('data', handleProgressChunk);
-
-    child.stdin.write(prompt);
-    child.stdin.end();
-
-    child.on('error', (error) => {
-      clearTimeout(timer);
-      const recentProgress = progressLines.slice(-8).join(' | ');
-      reject(new Error(`${passLabel}: spawn-error=${error.message}${recentProgress ? ` | recent=${recentProgress}` : ''}`));
-    });
-
-    child.on('close', (code) => {
-      clearTimeout(timer);
-      if (code === 0) {
-        resolve();
-        return;
-      }
-      const recentProgress = progressLines.slice(-8).join(' | ');
-      reject(new Error(`${passLabel}: exit=${code}${recentProgress ? ` | recent=${recentProgress}` : ''}`));
-    });
-  });
-}
-
-async function analyzeWithCodexExec({ acceptedFiles, onProgress }) {
-  if (!String(process.env.CODEX_HOME || process.env.HOME || '').trim()) {
-    return null;
-  }
-
-  if (acceptedFiles.some((file) => detectArchiveExtension(file.originalName))) {
-    onProgress?.({
-      stage: '내용 분석 중',
-      progressPercent: 34,
-      message: '압축 업로드를 해제하고 런타임 구조를 복원하고 있습니다.',
-    });
-  }
-
-  const { workspaceRoot, manifest } = await prepareCodexAnalysisWorkspace(acceptedFiles);
-  const reconOutputFile = path.join(workspaceRoot, 'analysis-recon.txt');
-  const finalOutputFile = path.join(workspaceRoot, 'analysis-report.json');
-  const totalTimeoutMs = Number(process.env.ANALYSIS_CODEX_TIMEOUT_MS || 14 * 60 * 1000);
-  const reconTimeoutMs = Math.max(6 * 60 * 1000, Math.floor(totalTimeoutMs * 0.55));
-  const finalTimeoutMs = Math.max(5 * 60 * 1000, totalTimeoutMs - reconTimeoutMs);
-
   try {
-    onProgress?.({
-      stage: '내용 분석 중',
-      progressPercent: 38,
-      message: '엔트리포인트, 실행 경로, 실제 런타임 파일을 심층적으로 추적하고 있습니다.',
-    });
-
-    await runCodexExecPass({
-      workspaceRoot,
-      outputFile: reconOutputFile,
-      prompt: buildCodexReconPrompt({ manifest }),
-      onProgress,
-      passLabel: 'codex-recon',
-      stage: '내용 분석 중',
-      progressPercent: 48,
-      timeoutMs: reconTimeoutMs,
-    });
-
-    const reconnaissance = fs.existsSync(reconOutputFile)
-      ? fs.readFileSync(reconOutputFile, 'utf8')
-      : '';
-
-    onProgress?.({
-      stage: '취약점 분석 중',
-      progressPercent: 64,
-      message: '복원한 런타임 경로를 기준으로 취약점 성립 여부를 검증하고 있습니다.',
-    });
-
-    await runCodexExecPass({
-      workspaceRoot,
-      outputFile: finalOutputFile,
-      prompt: buildCodexFinalReportPrompt({ manifest, reconnaissance }),
-      onProgress,
-      passLabel: 'codex-final-report',
-      stage: '취약점 분석 중',
-      progressPercent: 74,
-      timeoutMs: finalTimeoutMs,
-    });
-
-    const parsed = extractJsonObject(fs.readFileSync(finalOutputFile, 'utf8'));
-    if (!parsed || !Array.isArray(parsed.findings)) {
-      console.error('[analysis/codex] invalid-final-json', {
-        finalOutputFile,
-        exists: fs.existsSync(finalOutputFile),
-        outputPreview: fs.existsSync(finalOutputFile)
-          ? fs.readFileSync(finalOutputFile, 'utf8').slice(0, 1200)
-          : '',
+    await new Promise((resolve, reject) => {
+      const child = spawn('codex', args, {
+        cwd: workspaceRoot,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        env: process.env,
       });
+      const timeoutMs = Number(process.env.ANALYSIS_CODEX_TIMEOUT_MS || 3 * 60 * 1000);
+      const timer = setTimeout(() => {
+        child.kill('SIGTERM');
+        reject(new Error('analysis-codex-timeout'));
+      }, timeoutMs);
+
+      const handleProgressChunk = (chunk) => {
+        const lines = String(chunk || '')
+          .split('\n')
+          .map((line) => sanitizeCodexProgressLine(line))
+          .filter(Boolean);
+
+        const latestLine = lines.at(-1);
+        if (!latestLine) {
+          return;
+        }
+
+        onProgress?.({
+          stage: '취약점 분석 중',
+          progressPercent: 62,
+          message: latestLine,
+        });
+      };
+
+      child.stdout?.on('data', handleProgressChunk);
+      child.stderr?.on('data', handleProgressChunk);
+
+      child.stdin.write(prompt);
+      child.stdin.end();
+
+      child.on('error', (error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+
+      child.on('close', (code) => {
+        clearTimeout(timer);
+        if (code === 0) {
+          resolve();
+          return;
+        }
+        reject(new Error(`analysis-codex-exit-${code}`));
+      });
+    });
+
+    const parsed = extractJsonObject(fs.readFileSync(outputFile, 'utf8'));
+    if (!parsed || !Array.isArray(parsed.findings)) {
       return null;
     }
 
     return parsed;
-  } catch (error) {
-    console.error('[analysis/codex] failed', {
-      error: error instanceof Error ? error.message : String(error),
-      workspaceRoot,
-      reconOutputExists: fs.existsSync(reconOutputFile),
-      finalOutputExists: fs.existsSync(finalOutputFile),
-      reconPreview: fs.existsSync(reconOutputFile)
-        ? fs.readFileSync(reconOutputFile, 'utf8').slice(0, 1200)
-        : '',
-      finalPreview: fs.existsSync(finalOutputFile)
-        ? fs.readFileSync(finalOutputFile, 'utf8').slice(0, 1200)
-        : '',
-    });
+  } catch {
     return null;
   } finally {
     fs.rmSync(workspaceRoot, { recursive: true, force: true });
@@ -1552,58 +1429,43 @@ function inferApplicationType(joinedText, sourceFiles) {
   return bestMatch?.score > 0 ? bestMatch.type : '기능을 제공하는';
 }
 
-function collectServiceBehaviorPoints(text) {
-  const points = [];
-  const pushPoint = (message) => {
-    if (!points.includes(message)) {
-      points.push(message);
-    }
-  };
-
-  if (/\bmenu\b|\bchoice\b|\bselect\b|\bstdin\b/i.test(text)) {
-    pushPoint('사용자는 메뉴나 입력창을 통해 항목을 조회하거나 생성, 수정, 삭제할 수 있다');
-  }
-  if (/\bexpress\b|\brouter\.(get|post|put|delete)\b|\bfastapi\b|\bflask\b|\b@RestController\b|\bhttp\b|\bapi\b/i.test(text)) {
-    pushPoint('사용자나 외부 시스템은 요청을 보내고 그 결과를 응답으로 받을 수 있다');
-  }
-  if (/\blogin\b|\bsignup\b|\bsession\b|\btoken\b|\bauth\b|\bpassword\b/i.test(text)) {
-    pushPoint('사용자는 로그인이나 인증 절차를 거쳐 권한이 필요한 기능을 이용할 수 있다');
-  }
-  if ((/\b(read|write|open|close|upload|download)\b/i.test(text) && /\bfile\b|\bpath\b|\bdir\b/i.test(text)) || /\bupload\b|\bdownload\b/i.test(text)) {
-    pushPoint('사용자는 파일을 올리거나 내려받고 저장된 데이터를 다룰 수 있다');
-  }
-  if (/\bsend\b|\brecv\b|\bsocket\b|\bconnect\b|\blisten\b|\baccept\b|\bwebsocket\b/i.test(text)) {
-    pushPoint('외부 시스템과 연결을 유지하면서 데이터를 주고받는 기능이 있다');
-  }
-  if (/\bselect\b|\binsert\b|\bupdate\b|\bdelete\b|\bquery\b|\bdatabase\b|\bdb\b|\bmongo\b|\bfindOne\b|\bfindMany\b/i.test(text)) {
-    pushPoint('서비스는 저장된 데이터를 조회하거나 추가, 수정, 삭제하는 기능을 제공한다');
-  }
-  if (/\bandroidmanifest\b|\bactivity\b|\bfragment\b|\bintent\b/i.test(text)) {
-    pushPoint('사용자는 여러 화면을 오가며 기능을 이용할 수 있다');
-  }
-  if (/\bchart\b|\bgraph\b|\bnetwork\b|\bd3\b|\bcytoscape\b/i.test(text)) {
-    pushPoint('사용자는 데이터를 시각적으로 확인하거나 관계를 탐색할 수 있다');
-  }
-  if (/\bmalloc\b|\bfree\b|\bcalloc\b|\brealloc\b|\b_IO_FILE\b|\bstdout\b|\bstdin\b/i.test(text)) {
-    pushPoint('사용자의 입력에 따라 데이터를 만들고 바꾸고 다시 확인하는 상호작용이 있다');
-  }
-
-  return points.slice(0, 4);
-}
-
 function buildApplicationNarrative(applicationType, sourceFiles, joinedText) {
-  const signalText = [joinedText, sourceFiles.join('\n')].filter(Boolean).join('\n');
-  const points = collectServiceBehaviorPoints(signalText);
+  const points = [];
+  const primaryFiles = sourceFiles.slice(0, 5).join(', ') || '업로드된 프로젝트 파일';
+
+  if (/\bmenu\b|\bchoice\b|\bselect\b/i.test(joinedText)) {
+    points.push('메뉴 입력을 받아 생성, 수정, 삭제, 조회 같은 기능을 수행하며 사용자의 선택에 따라 내부 상태가 바뀌는 로직이 존재한다');
+  }
+  if (/\bmalloc\b|\bfree\b|\bcalloc\b|\brealloc\b/i.test(joinedText)) {
+    points.push('동적 메모리 할당과 해제가 반복되어 객체의 생성 시점과 해제 시점이 서비스 동작에 직접 영향을 주는 구조다');
+  }
+  if (/\b_IO_FILE\b|\bstdout\b|\bstdin\b|\bfsop\b/i.test(joinedText)) {
+    points.push('표준 입출력 스트림과 FILE 구조체에 가까운 입출력 처리 로직이 포함되어 있어 출력 흐름과 내부 객체 상태가 밀접하게 연결되어 있다');
+  }
+  if (/\bdockerfile\b|\blibc\.so\b|\bld-linux\b/i.test(joinedText)) {
+    points.push('런타임 구성 파일과 라이브러리 파일이 함께 포함되어 있어 특정 실행 환경을 기준으로 동작하는 서비스 구조를 가진다');
+  }
+  if (/\bexpress\b|\brouter\.(get|post|put|delete)\b|\bfastapi\b|\bflask\b/i.test(joinedText)) {
+    points.push('외부 요청을 받아 라우팅하고 응답을 반환하는 API 처리 흐름이 존재한다');
+  }
+  if (/\bandroidmanifest\b|\bactivity\b|\bintent\b/i.test(joinedText)) {
+    points.push('화면 전환과 컴포넌트 호출을 통해 기능이 이어지는 모바일 서비스 구조를 가진다');
+  }
+  if (/\blogin\b|\bsession\b|\btoken\b|\bauth\b/i.test(joinedText)) {
+    points.push('인증 정보와 세션 상태를 다루는 기능이 존재해 사용자 식별과 권한 처리 흐름이 핵심 로직에 포함된다');
+  }
+  if (/\b(read|write|open|close)\b/i.test(joinedText) && /\bfile\b|\bpath\b|\bdir\b/i.test(joinedText)) {
+    points.push('파일이나 경로를 열고 읽고 쓰는 기능이 포함되어 있어 외부 입력이 저장소나 파일 시스템 동작으로 이어질 수 있다');
+  }
+  if (/\bsend\b|\brecv\b|\bsocket\b|\bconnect\b|\blisten\b|\baccept\b/i.test(joinedText)) {
+    points.push('네트워크 연결을 통해 데이터를 송수신하는 기능이 존재해 외부 입력이 지속적으로 서비스 상태에 반영될 수 있다');
+  }
+
   const narrative = points.length
     ? points.join('. ')
-    : '사용자의 입력을 받아 데이터를 처리하고 결과를 보여주는 기능을 제공한다';
+    : '사용자 입력을 받아 상태를 갱신하고 그 결과를 화면이나 응답으로 제공하는 일반적인 애플리케이션 서비스 구조를 가진다';
 
-  return `이 서비스는 ${applicationType} 서비스를 제공한다. ${narrative}.`;
-}
-
-function normalizeApplicationReport({ applicationType, applicationReport, sourceFiles, joinedText = '' }) {
-  const hintText = [joinedText, applicationReport].filter(Boolean).join('\n');
-  return buildApplicationNarrative(applicationType, sourceFiles, hintText);
+  return `이 서비스는 ${applicationType} 애플리케이션 서비스로 보인다. 주요 로직은 ${primaryFiles}에서 확인되며, ${narrative}. 실무 환경에서는 사용자의 요청을 처리하고 내부 상태를 유지하면서 결과를 반환하는 형태로 운영되는 서비스에 가깝다.`;
 }
 
 function createFindingFromRule(rule, context) {
@@ -2053,7 +1915,7 @@ function normalizeCodexFinding(finding, index) {
   });
 }
 
-export function normalizeCodexReport(parsedReport, sourceFiles, contexts = []) {
+function normalizeCodexReport(parsedReport, sourceFiles, contexts = []) {
   if (!parsedReport || !Array.isArray(parsedReport.findings)) {
     return null;
   }
@@ -2072,12 +1934,7 @@ export function normalizeCodexReport(parsedReport, sourceFiles, contexts = []) {
     title: normalizedTitle.endsWith('서비스') ? normalizedTitle : `${normalizedTitle} 서비스`,
     applicationType,
     summary: String(parsedReport.summary || summarizeFindings(finalFindings, resultMode)).trim(),
-    applicationReport: normalizeApplicationReport({
-      applicationType,
-      applicationReport: String(parsedReport.applicationReport || '').trim(),
-      sourceFiles: sourceFiles.map((file) => file.relativePath || file.originalName),
-      joinedText: contexts.map((context) => context.fullText || context.text || '').join('\n\n'),
-    }),
+    applicationReport: String(parsedReport.applicationReport || `이 서비스는 ${applicationType} 애플리케이션 서비스로 보인다.`).trim(),
     resultMode,
     overallSeverity: calculateOverallSeverity(finalFindings),
     findingsCount: finalFindings.length,
@@ -2129,15 +1986,13 @@ export function selectPreferredAnalysisReport({ normalizedCodexReport, ruleBased
   return normalizedCodexReport || ruleBasedReport || null;
 }
 
-function buildFallbackReport(acceptedFiles, reason = '', contexts = []) {
+function buildFallbackReport(acceptedFiles, reason = '') {
   const sourceFiles = acceptedFiles.map((file) => ({
     originalName: file.originalName,
     relativePath: file.relativePath || '',
     size: file.size || 0,
   }));
   const sourceFileNames = sourceFiles.map((file) => file.originalName);
-  const joinedText = contexts.map((context) => context.fullText || context.text || '').join('\n\n');
-  const applicationType = inferApplicationType(joinedText, sourceFileNames);
   const findings = [
     buildStructuredFinding({
       id: 'fallback-review-0',
@@ -2153,15 +2008,10 @@ function buildFallbackReport(acceptedFiles, reason = '', contexts = []) {
   ];
 
   return {
-    title: `${applicationType} 서비스`,
-    applicationType,
+    title: '기능을 제공하는 소프트웨어 서비스',
+    applicationType: '기능을 제공하는 소프트웨어',
     summary: '발견된 취약점 : 장시간 분석 후에도 확정되지 않아 추가 검토 포인트를 남겼습니다.',
-    applicationReport: normalizeApplicationReport({
-      applicationType,
-      applicationReport: '',
-      sourceFiles: sourceFiles.map((file) => file.relativePath || file.originalName),
-      joinedText,
-    }),
+    applicationReport: `업로드된 파일 전체를 해제하고 순회했지만 제한 시간 안에 exploit 가능한 취약점을 확정하지 못했다. 주요 파일은 ${sourceFileNames.slice(0, 8).join(', ') || '업로드된 프로젝트 파일'}다. 현재 단계에서는 메모리 오염, 입력 처리, 권한 경계, 파일 조작 경로를 우선 점검하는 편이 좋다.`,
     resultMode: 'recommendation',
     overallSeverity: calculateOverallSeverity(findings),
     findingsCount: findings.length,
@@ -2179,26 +2029,16 @@ async function generateAnalysisReportInternal({ acceptedFiles, onProgress }) {
   const contexts = await buildFileContexts(acceptedFiles, onProgress);
   const codexReport = await analyzeWithCodexExec({ acceptedFiles, onProgress });
   const normalizedCodexReport = normalizeCodexReport(codexReport, sourceFiles, contexts);
-  if (normalizedCodexReport) {
+  if (normalizedCodexReport?.resultMode === 'vulnerability') {
     return normalizedCodexReport;
   }
 
-  console.error('[analysis/report] deep-analysis-unavailable', {
-    sourceFiles: sourceFiles.map((file) => file.originalName),
-    contextsCount: contexts.length,
-  });
+  const ruleBasedReport = buildRuleBasedAnalysisReport({ contexts, sourceFiles });
 
-  onProgress?.({
-    stage: '취약점 분석 중',
-    progressPercent: 72,
-    message: '심층 분석 결과를 확정하지 못해 추가 검토 필요 리포트로 마무리합니다.',
+  return selectPreferredAnalysisReport({
+    normalizedCodexReport,
+    ruleBasedReport,
   });
-
-  return buildFallbackReport(
-    acceptedFiles,
-    '심층 Codex 분석이 시간 제한 안에 끝나지 않았거나 최종 취약점 JSON을 확정하지 못했다.',
-    contexts,
-  );
 }
 
 export async function generateAnalysisReport({ acceptedFiles, onProgress }) {
