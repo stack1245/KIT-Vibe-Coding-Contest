@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server';
-import { generateOAuthState, getGitHubConfig, hasGitHubConfig } from '../../../lib/server/config';
-import { commitSession, getSession } from '../../../lib/server/session';
 
-function redirectWithParams(request, pathname, params = {}, hash = '') {
-  const url = new URL(pathname, request.url);
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+export const runtime = 'nodejs';
+
+function redirectWithParams(appOrigin, pathname, params = {}, hash = '') {
+  const url = new URL(pathname, `${appOrigin}/`);
   Object.entries(params).forEach(([key, value]) => {
     if (value) {
       url.searchParams.set(key, value);
@@ -14,23 +17,32 @@ function redirectWithParams(request, pathname, params = {}, hash = '') {
 }
 
 export async function GET(request) {
-  const config = getGitHubConfig(request.nextUrl.origin);
+  if (!request) {
+    return NextResponse.redirect(new URL('/login', 'http://localhost:3000'));
+  }
+
+  const [configModule, { commitSession, getSession }] = await Promise.all([
+    import('../../../lib/server/config'),
+    import('../../../lib/server/session'),
+  ]);
+  const appOrigin = configModule.getRequestAppOrigin(request);
+  const config = configModule.getGitHubConfig(request);
   const mode = request.nextUrl.searchParams.get('mode') === 'link'
     ? 'link'
     : request.nextUrl.searchParams.get('mode') === 'signup'
       ? 'signup'
       : 'signin';
-  const session = await getSession();
+  const session = await getSession(request);
 
-  if (!hasGitHubConfig(config)) {
-    return redirectWithParams(request, '/login', { error: 'config_missing' }, mode);
+  if (!configModule.hasGitHubConfig(config)) {
+    return redirectWithParams(appOrigin, '/login', { error: 'config_missing' }, mode);
   }
 
   if (mode === 'link' && !session.accountId) {
-    return redirectWithParams(request, '/login', { error: 'login_required' }, 'signin');
+    return redirectWithParams(appOrigin, '/login', { error: 'login_required' }, 'signin');
   }
 
-  const state = generateOAuthState();
+  const state = configModule.generateOAuthState();
   const nextSession = {
     ...session,
     oauthState: state,

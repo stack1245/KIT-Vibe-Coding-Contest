@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
-import LoginPage from '../../components/LoginPage';
+import LoginPageClientOnly from '../../components/LoginPageClientOnly';
+import { getUserPreferences } from '../../lib/server/database';
 import { getSession } from '../../lib/server/session';
 import { getSessionUser } from '../../lib/server/auth';
 
@@ -8,8 +9,8 @@ export default async function LoginRoutePage() {
   const user = getSessionUser(session);
 
   if (user) {
-    redirect('/dashboard');
+    redirect(getUserPreferences(user.id).preferredLanding);
   }
 
-  return <LoginPage />;
+  return <LoginPageClientOnly />;
 }

@@ -1,19 +1,30 @@
 import { NextResponse } from 'next/server';
-import { clearSignupVerification, createSignupVerifiedSession } from '../../../../../lib/server/auth';
-import { commitSession, getSession } from '../../../../../lib/server/session';
-import { isValidEmail, verifyEmailVerificationCode } from '../../../../../lib/server/database';
-import { AUTH_RATE_LIMITS, getVerificationMessage } from '../../../../../lib/server/config';
-import { enforceRateLimit } from '../../../../../lib/server/rate-limit';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+export const runtime = 'nodejs';
 
 export async function POST(request) {
+  if (!request) {
+    return NextResponse.json({ ok: false, message: '잘못된 요청입니다.' }, { status: 400 });
+  }
+
+  const [{ clearSignupVerification, createSignupVerifiedSession }, { commitSession, getSession }, databaseModule, configModule, { enforceRateLimit }] = await Promise.all([
+    import('../../../../../lib/server/auth'),
+    import('../../../../../lib/server/session'),
+    import('../../../../../lib/server/database'),
+    import('../../../../../lib/server/config'),
+    import('../../../../../lib/server/rate-limit'),
+  ]);
   const body = await request.json().catch(() => ({}));
   const email = String(body.email || '').trim();
   const code = String(body.code || '').trim();
-  const session = await getSession();
+  const session = await getSession(request);
   const rateLimitedResponse = enforceRateLimit(request, {
     namespace: 'verification-confirm',
     identifier: email,
-    ...AUTH_RATE_LIMITS.verificationConfirm,
+    ...configModule.AUTH_RATE_LIMITS.verificationConfirm,
   });
 
   if (rateLimitedResponse) {
@@ -24,14 +35,14 @@ export async function POST(request) {
     return NextResponse.json({ ok: false, message: '이메일과 인증 코드를 입력해주세요.' }, { status: 400 });
   }
 
-  if (!isValidEmail(email)) {
+  if (!databaseModule.isValidEmail(email)) {
     return NextResponse.json({ ok: false, message: '올바른 이메일 형식을 입력해주세요.' }, { status: 400 });
   }
 
-  const verificationResult = verifyEmailVerificationCode(email, code);
+  const verificationResult = databaseModule.verifyEmailVerificationCode(email, code);
   if (!verificationResult.ok) {
     return commitSession(
-      NextResponse.json({ ok: false, message: getVerificationMessage(verificationResult.reason) }, { status: 400 }),
+      NextResponse.json({ ok: false, message: configModule.getVerificationMessage(verificationResult.reason) }, { status: 400 }),
       clearSignupVerification(session)
     );
   }

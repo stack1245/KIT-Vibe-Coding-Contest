@@ -1,19 +1,26 @@
 import path from 'node:path';
 import { NextResponse } from 'next/server';
-import { databaseFilePath } from '../../../../lib/server/database';
-import { getAdminEmails, getGitHubConfig, getMailConfig, hasGitHubConfig, hasMailConfig } from '../../../../lib/server/config';
 
-export function GET(request) {
-  const config = getGitHubConfig(request.nextUrl.origin);
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+export const runtime = 'nodejs';
+
+export async function GET(request) {
+  const [{ databaseFilePath }, configModule] = await Promise.all([
+    import('../../../../lib/server/database'),
+    import('../../../../lib/server/config'),
+  ]);
+  const config = configModule.getGitHubConfig(request);
 
   return NextResponse.json({
-    enabled: hasGitHubConfig(config),
+    enabled: configModule.hasGitHubConfig(config),
     provider: 'github',
     loginUrl: '/auth/github',
     linkUrl: '/auth/github?mode=link',
     database: path.basename(databaseFilePath),
-    adminConfigured: getAdminEmails().length > 0,
+    adminConfigured: configModule.getAdminEmails().length > 0,
     emailVerificationRequired: true,
-    emailDeliveryConfigured: hasMailConfig(getMailConfig()),
+    emailDeliveryConfigured: configModule.hasMailConfig(configModule.getMailConfig()),
   });
 }

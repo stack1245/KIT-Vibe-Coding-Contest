@@ -1,6 +1,12 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
+import {
+  cancelAnalysisJobAction,
+  getAnalysisJobStatusAction,
+  importGitHubRepositoryAction,
+  listGitHubRepositoriesAction,
+} from '../app/analysis/actions';
 import styles from './AnalysisPage.module.css';
 
 function formatBytes(value) {
@@ -20,20 +26,202 @@ function formatBytes(value) {
   return `${amount.toFixed(amount >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 }
 
-export default function AnalysisUploadPanel() {
+const ANALYSIS_STAGES = [
+  '업로드 진행 중',
+  '내용 분석 중',
+  '취약점 분석 중',
+  '조언 생성 중',
+];
+const STAGE_PROGRESS_CAPS = {
+  '업로드 진행 중': 18,
+  '내용 분석 중': 48,
+  '취약점 분석 중': 84,
+  '조언 생성 중': 94,
+  '리포트 정리 중': 94,
+  '분석 완료': 100,
+  '분석 실패': 100,
+};
+
+function getStageProgressCap(stage) {
+  return STAGE_PROGRESS_CAPS[stage] ?? 90;
+}
+
+function getStageIndex(stage, uploadScreening) {
+  if (!stage) {
+    return uploadScreening ? 0 : 1;
+  }
+
+  const normalizedStage = stage === '리포트 정리 중' ? '조언 생성 중' : stage;
+  const index = ANALYSIS_STAGES.findIndex((item) => item === normalizedStage);
+
+  return index >= 0 ? index : 0;
+}
+
+function getReadableJobError(job) {
+  if (!job) {
+    return '분석 중 오류가 발생했습니다.';
+  }
+
+  if (job.errorMessage === 'stale-analysis-job') {
+    return '이전 분석 작업이 중단되어 자동으로 정리했습니다. 다시 업로드해 주세요.';
+  }
+
+  if (job.status === 'cancelled' || job.errorMessage === 'cancelled-by-user') {
+    return '분석을 취소했습니다.';
+  }
+
+  return job.message || job.errorMessage || '분석 중 오류가 발생했습니다.';
+}
+
+function getStageDescription(stage) {
+  switch (stage) {
+    case '업로드 진행 중':
+      return '파일을 정리하고 분석 작업을 준비하고 있습니다.';
+    case '내용 분석 중':
+      return '파일 구조와 핵심 로직을 읽으며 분석 대상을 분류하고 있습니다.';
+    case '취약점 분석 중':
+      return '취약점 근거와 악용 가능성을 비교하며 검증하고 있습니다.';
+    case '조언 생성 중':
+    case '리포트 정리 중':
+      return '결과를 사람이 읽기 쉬운 리포트 형태로 정리하고 있습니다.';
+    case '분석 완료':
+      return '분석이 끝났습니다. 최신 리포트를 확인할 수 있습니다.';
+    default:
+      return '분석 작업을 진행하고 있습니다.';
+  }
+}
+
+export default function AnalysisUploadPanel({ onReportCreated, github = null }) {
   const [selectedFiles, setSelectedFiles] = useState([]);
+  const [activeUploadFiles, setActiveUploadFiles] = useState([]);
+  const [repositories, setRepositories] = useState([]);
+  const [selectedRepository, setSelectedRepository] = useState('');
+  const [loadingRepositories, setLoadingRepositories] = useState(false);
+  const [importingRepository, setImportingRepository] = useState(false);
+  const [repositoryNotice, setRepositoryNotice] = useState('');
+  const [requiresGitHubReconnect, setRequiresGitHubReconnect] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const [feedback, setFeedback] = useState({ message: '', type: 'neutral' });
-  const [result, setResult] = useState(null);
+  const [progressValue, setProgressValue] = useState(0);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [currentJob, setCurrentJob] = useState(null);
+  const [uploadScreening, setUploadScreening] = useState(false);
 
-  const totalSelectedSize = useMemo(() => {
-    return selectedFiles.reduce((total, file) => total + file.size, 0);
-  }, [selectedFiles]);
+  useEffect(() => {
+    if (!currentJob?.id || !(currentJob.status === 'queued' || currentJob.status === 'running')) {
+      return undefined;
+    }
 
-  function handleChange(event) {
-    const nextFiles = Array.from(event.target.files || []);
+    let cancelled = false;
+    const interval = window.setInterval(async () => {
+      const payload = await getAnalysisJobStatusAction(currentJob.id).catch(() => null);
+      if (cancelled || !payload?.job) {
+        return;
+      }
+
+      setCurrentJob(payload.job);
+      setProgressValue((current) => Math.max(current, Number(payload.job.progressPercent || 0)));
+
+      if (payload.job.status === 'completed') {
+        setProgressValue(100);
+        setSubmitting(false);
+        setCancelling(false);
+        setCurrentJob(null);
+        setUploadScreening(false);
+        setActiveUploadFiles([]);
+        if (payload.report && typeof onReportCreated === 'function') {
+          onReportCreated(payload.report);
+        }
+      }
+
+      if (payload.job.status === 'failed' || payload.job.status === 'cancelled') {
+        setSubmitting(false);
+        setCancelling(false);
+        setCurrentJob(null);
+        setUploadScreening(false);
+        setProgressValue(0);
+        setActiveUploadFiles([]);
+        setFeedback({
+          message: getReadableJobError(payload.job),
+          type: payload.job.status === 'cancelled' ? 'neutral' : 'error',
+        });
+      }
+    }, 2500);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [currentJob?.id, currentJob?.status, onReportCreated]);
+
+  useEffect(() => {
+    if (!submitting) {
+      setElapsedSeconds(0);
+      return undefined;
+    }
+
+    const startedAt = Date.now();
+    const interval = window.setInterval(() => {
+      const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+      setElapsedSeconds(elapsed);
+    }, 700);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [submitting]);
+
+  useEffect(() => {
+    if (!submitting) {
+      return undefined;
+    }
+
+    const interval = window.setInterval(() => {
+      setProgressValue((current) => {
+        if (!currentJob?.id || !(currentJob.status === 'queued' || currentJob.status === 'running')) {
+          if (current >= 18) {
+            return current;
+          }
+
+          return Math.min(current + (elapsedSeconds < 8 ? 2 : 0.6), 18);
+        }
+
+        const stage = currentJob.stage || (uploadScreening ? '업로드 진행 중' : '내용 분석 중');
+        const floor = Number(currentJob.progressPercent || 0);
+        const cap = getStageProgressCap(stage);
+        const nextBase = Math.max(current, floor);
+
+        if (nextBase >= cap) {
+          return nextBase;
+        }
+
+        const delta = stage === '취약점 분석 중'
+          ? 0.35
+          : stage === '내용 분석 중'
+            ? 0.55
+            : 0.45;
+
+        return Math.min(Number((nextBase + delta).toFixed(1)), cap);
+      });
+    }, 700);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [submitting, currentJob, elapsedSeconds, uploadScreening]);
+
+  const displayedFiles = submitting && activeUploadFiles.length ? activeUploadFiles : selectedFiles;
+  const totalSelectedSize = displayedFiles.reduce((total, file) => total + file.size, 0);
+  const currentStageIndex = getStageIndex(currentJob?.stage, uploadScreening);
+  const currentStage = currentJob?.stage || (uploadScreening ? '업로드 진행 중' : ANALYSIS_STAGES[currentStageIndex]);
+  const roundedProgressValue = Math.max(0, Math.min(100, Math.round(progressValue)));
+  const stageStepLabel = `${Math.min(currentStageIndex + 1, ANALYSIS_STAGES.length)} / ${ANALYSIS_STAGES.length}`;
+  const stageMessage = currentJob?.message || getStageDescription(currentStage);
+
+  function applySelectedFiles(nextFiles) {
     setSelectedFiles(nextFiles);
-    setResult(null);
 
     if (!nextFiles.length) {
       setFeedback({ message: '', type: 'neutral' });
@@ -46,6 +234,48 @@ export default function AnalysisUploadPanel() {
     });
   }
 
+  function handleChange(event) {
+    applySelectedFiles(Array.from(event.target.files || []));
+  }
+
+  function handleDragEnter(event) {
+    event.preventDefault();
+    if (submitting) {
+      return;
+    }
+
+    setIsDragging(true);
+  }
+
+  function handleDragOver(event) {
+    event.preventDefault();
+    if (submitting) {
+      return;
+    }
+
+    setIsDragging(true);
+  }
+
+  function handleDragLeave(event) {
+    event.preventDefault();
+    if (event.currentTarget.contains(event.relatedTarget)) {
+      return;
+    }
+
+    setIsDragging(false);
+  }
+
+  function handleDrop(event) {
+    event.preventDefault();
+    setIsDragging(false);
+
+    if (submitting) {
+      return;
+    }
+
+    applySelectedFiles(Array.from(event.dataTransfer?.files || []));
+  }
+
   async function handleSubmit(event) {
     event.preventDefault();
 
@@ -55,10 +285,14 @@ export default function AnalysisUploadPanel() {
     }
 
     setSubmitting(true);
-    setResult(null);
+    setCancelling(false);
+    setUploadScreening(true);
+    setProgressValue(8);
+    setActiveUploadFiles(selectedFiles);
     const formElement = event.currentTarget;
 
     const formData = new FormData();
+    let createdJobId = null;
     selectedFiles.forEach((file) => {
       formData.append('files', file);
     });
@@ -71,21 +305,140 @@ export default function AnalysisUploadPanel() {
       });
       const payload = await response.json().catch(() => ({}));
 
-      setResult(payload);
-
       if (!response.ok) {
-        throw new Error(payload.message || '업로드를 처리하지 못했습니다.');
+        throw new Error(payload.message || '업로드된 파일을 분석할 수 없습니다. 다른 파일로 시도 해주세요!');
       }
 
-      setFeedback({ message: payload.message || '업로드가 완료되었습니다.', type: 'success' });
+      if (payload.job?.id) {
+        createdJobId = payload.job.id;
+        setCurrentJob(payload.job);
+        setUploadScreening(false);
+        setProgressValue((current) => Math.max(current, Number(payload.job.progressPercent || 8)));
+      }
+
+      setFeedback({ message: '업로드가 완료되었습니다. 분석은 백그라운드에서 계속 진행됩니다.', type: 'neutral' });
       setSelectedFiles([]);
       formElement.reset();
     } catch (error) {
       setFeedback({ message: error.message || '업로드에 실패했습니다.', type: 'error' });
+      setCurrentJob(null);
+      setUploadScreening(false);
+      setProgressValue(0);
+      setActiveUploadFiles([]);
     } finally {
-      setSubmitting(false);
+      if (!createdJobId) {
+        setSubmitting(false);
+        setUploadScreening(false);
+      }
     }
   }
+
+  async function handleLoadRepositories() {
+    if (loadingRepositories || submitting) {
+      return;
+    }
+
+    setLoadingRepositories(true);
+    setRepositoryNotice('');
+
+    try {
+      const payload = await listGitHubRepositoriesAction();
+
+      const nextRepositories = Array.isArray(payload.repositories) ? payload.repositories : [];
+      setRepositories(nextRepositories);
+      setSelectedRepository((current) => current || nextRepositories[0]?.fullName || '');
+      setRequiresGitHubReconnect(false);
+      setRepositoryNotice(nextRepositories.length ? `${nextRepositories.length}개 저장소를 불러왔습니다.` : '표시할 저장소가 없습니다.');
+    } catch (error) {
+      setRepositoryNotice(error.message || 'GitHub 저장소 목록을 불러오지 못했습니다.');
+    } finally {
+      setLoadingRepositories(false);
+    }
+  }
+
+  async function handleImportRepository() {
+    if (!selectedRepository || importingRepository || submitting) {
+      return;
+    }
+
+    const currentRepository = repositories.find((repository) => repository.fullName === selectedRepository);
+
+    setImportingRepository(true);
+    setSubmitting(true);
+    setCancelling(false);
+    setUploadScreening(true);
+    setProgressValue(8);
+    setCurrentJob(null);
+    setFeedback({ message: '', type: 'neutral' });
+    setRepositoryNotice('');
+    setActiveUploadFiles([
+      {
+        name: `${selectedRepository}.zip`,
+        size: Number(currentRepository?.size || 0) * 1024,
+      },
+    ]);
+
+    let createdJobId = null;
+
+    try {
+      const payload = await importGitHubRepositoryAction(selectedRepository);
+
+      if (payload.job?.id) {
+        createdJobId = payload.job.id;
+        setCurrentJob(payload.job);
+        setUploadScreening(false);
+        setProgressValue((current) => Math.max(current, Number(payload.job.progressPercent || 8)));
+      }
+
+      setFeedback({
+        message: payload.message || 'GitHub 저장소를 가져왔습니다. 분석은 백그라운드에서 계속 진행됩니다.',
+        type: 'neutral',
+      });
+    } catch (error) {
+      setFeedback({ message: error.message || 'GitHub 저장소 가져오기에 실패했습니다.', type: 'error' });
+      setCurrentJob(null);
+      setUploadScreening(false);
+      setProgressValue(0);
+      setActiveUploadFiles([]);
+    } finally {
+      if (!createdJobId) {
+        setSubmitting(false);
+        setUploadScreening(false);
+      }
+      setImportingRepository(false);
+    }
+  }
+
+  async function handleCancelAnalysis() {
+    if (!currentJob?.id || cancelling) {
+      return;
+    }
+
+    setCancelling(true);
+
+    try {
+      const payload = await cancelAnalysisJobAction(currentJob.id);
+
+      setSubmitting(false);
+      setCurrentJob(null);
+      setUploadScreening(false);
+      setProgressValue(0);
+      setActiveUploadFiles([]);
+      setFeedback({
+        message: payload.message || '분석을 취소했습니다.',
+        type: 'neutral',
+      });
+    } catch (error) {
+      setFeedback({ message: error.message || '분석 취소에 실패했습니다.', type: 'error' });
+    } finally {
+      setCancelling(false);
+    }
+  }
+
+  const githubEnabled = Boolean(github?.enabled);
+  const githubConnected = Boolean(github?.connected);
+  const githubRepoAccess = Boolean(github?.repoAccess);
+  const githubLinkUrl = String(github?.linkUrl || '/auth/github?mode=link');
 
   return (
     <section className={styles.uploadPanel}>
@@ -98,7 +451,14 @@ export default function AnalysisUploadPanel() {
           onChange={handleChange}
         />
 
-        <label className={styles.uploadDropzone} htmlFor="analysis-upload-input">
+        <label
+          className={`${styles.uploadDropzone} ${isDragging ? styles.uploadDropzoneActive : ''}`.trim()}
+          htmlFor={submitting ? undefined : 'analysis-upload-input'}
+          onDragEnter={handleDragEnter}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
           <span className={styles.uploadIcon}>
             <img src="/assets/images/upload.png" alt="업로드 아이콘" />
           </span>
@@ -112,13 +472,13 @@ export default function AnalysisUploadPanel() {
         </label>
 
         <div className={styles.uploadMetaRow}>
-          <span>선택 파일 {selectedFiles.length}개</span>
+          <span>선택 파일 {displayedFiles.length}개</span>
           <span>총 {formatBytes(totalSelectedSize)}</span>
         </div>
 
-        {selectedFiles.length ? (
+        {displayedFiles.length ? (
           <ul className={styles.selectedFileList}>
-            {selectedFiles.map((file) => (
+            {displayedFiles.map((file) => (
               <li key={`${file.name}-${file.size}`}>
                 <strong>{file.name}</strong>
                 <span>{formatBytes(file.size)}</span>
@@ -127,48 +487,148 @@ export default function AnalysisUploadPanel() {
           </ul>
         ) : null}
 
+        {submitting ? (
+          <div className={styles.analysisLoadingCard}>
+            <div className={styles.analysisLoadingHead}>
+              <div className={styles.analysisLoadingTitleBlock}>
+                <strong>분석 진행 중</strong>
+                <p>{getStageDescription(currentStage)}</p>
+              </div>
+              <span className={styles.analysisElapsed}>{elapsedSeconds}초 경과</span>
+            </div>
+
+            <div className={styles.analysisStatusRow}>
+              <div className={styles.analysisStatusPill}>{currentStage}</div>
+              <div className={styles.analysisStatusPillMuted}>단계 {stageStepLabel}</div>
+            </div>
+
+            <div className={styles.analysisProgressTrack}>
+              <div className={styles.analysisProgressFill} style={{ width: `${progressValue}%` }} />
+            </div>
+
+            <div className={styles.analysisLoadingMeta}>
+              <span>전체 진행률</span>
+              <strong>{roundedProgressValue}%</strong>
+            </div>
+
+            <ol className={styles.analysisStageList}>
+              {ANALYSIS_STAGES.map((stage, index) => {
+                const stateClassName = index < currentStageIndex
+                  ? styles.analysisStageDone
+                  : index === currentStageIndex
+                    ? styles.analysisStageActive
+                    : styles.analysisStagePending;
+
+                return (
+                  <li key={stage} className={`${styles.analysisStageItem} ${stateClassName}`}>
+                    <span className={styles.analysisStageDot} />
+                    <span>{stage}</span>
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
+        ) : null}
+
         <div className={styles.uploadActions}>
           <button className={styles.solidButton} type="submit" disabled={submitting}>
-            {submitting ? '검사 중...' : '파일 업로드'}
+            {submitting ? '분석 중...' : '파일 업로드'}
           </button>
+          {submitting && currentJob?.id ? (
+            <button
+              className={styles.secondaryButton}
+              type="button"
+              onClick={handleCancelAnalysis}
+              disabled={cancelling}
+            >
+              {cancelling ? '취소 중...' : '분석 취소'}
+            </button>
+          ) : null}
         </div>
       </form>
+
+      <div className={styles.githubRepoSection}>
+        <div className={styles.githubRepoHead}>
+          <div>
+            <strong>GitHub 저장소 가져오기</strong>
+            <p>연동된 GitHub 계정의 저장소를 zipball로 가져와 동일한 필터링과 분석 파이프라인에 태웁니다.</p>
+          </div>
+        </div>
+
+        {!githubEnabled ? (
+          <p className={styles.uploadNeutral}>현재 서버에 GitHub OAuth 설정이 없어 저장소 가져오기를 사용할 수 없습니다.</p>
+        ) : null}
+
+        {githubEnabled && !githubConnected ? (
+          <div className={styles.githubRepoEmpty}>
+            <p className={styles.uploadNeutral}>저장소를 가져오려면 먼저 GitHub 계정을 연동해야 합니다.</p>
+            <a className={styles.solidButton} href={githubLinkUrl}>GitHub 연동</a>
+          </div>
+        ) : null}
+
+        {githubEnabled && githubConnected && (!githubRepoAccess || requiresGitHubReconnect) ? (
+          <div className={styles.githubRepoEmpty}>
+            <p className={styles.uploadNeutral}>저장소 목록을 읽으려면 `repo` 권한이 포함되도록 GitHub 계정을 다시 연동해야 합니다.</p>
+            <a className={styles.solidButton} href={githubLinkUrl}>GitHub 다시 연동</a>
+          </div>
+        ) : null}
+
+        {githubEnabled && githubConnected && githubRepoAccess && !requiresGitHubReconnect ? (
+          <>
+            <div className={styles.githubRepoControls}>
+              <button
+                className={styles.solidButton}
+                type="button"
+                onClick={handleLoadRepositories}
+                disabled={loadingRepositories || submitting}
+              >
+                {loadingRepositories ? '불러오는 중...' : '저장소 불러오기'}
+              </button>
+
+              <label className={styles.githubRepoField}>
+                <span>저장소 선택</span>
+                <select
+                  className={styles.githubRepoSelect}
+                  value={selectedRepository}
+                  onChange={(event) => setSelectedRepository(event.target.value)}
+                  disabled={!repositories.length || submitting}
+                >
+                  <option value="">{repositories.length ? '저장소를 선택하세요' : '먼저 저장소 목록을 불러오세요'}</option>
+                  {repositories.map((repository) => (
+                    <option key={repository.id || repository.fullName} value={repository.fullName}>
+                      {repository.fullName}{repository.private ? ' (private)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <button
+                className={styles.solidButton}
+                type="button"
+                onClick={handleImportRepository}
+                disabled={!selectedRepository || importingRepository || submitting}
+              >
+                {importingRepository ? '가져오는 중...' : '저장소 분석'}
+              </button>
+            </div>
+
+            {selectedRepository ? (
+              <p className={styles.githubRepoSelection}>
+                선택된 저장소: <strong>{selectedRepository}</strong>
+              </p>
+            ) : null}
+          </>
+        ) : null}
+      </div>
+
+      {repositoryNotice ? (
+        <p className={styles.uploadNeutral}>{repositoryNotice}</p>
+      ) : null}
 
       {feedback.message ? (
         <p className={feedback.type === 'error' ? styles.uploadError : feedback.type === 'success' ? styles.uploadSuccess : styles.uploadNeutral}>
           {feedback.message}
         </p>
-      ) : null}
-
-      {result ? (
-        <div className={styles.uploadResultGrid}>
-          <article className={styles.uploadResultCard}>
-            <h3>허용된 파일</h3>
-            <p>{result.accepted?.length || 0}개</p>
-            <ul className={styles.uploadResultList}>
-              {(result.accepted || []).map((entry) => (
-                <li key={entry.storedPath}>
-                  <strong>{entry.originalName}</strong>
-                  <span>{entry.storedPath}</span>
-                  <span>{entry.reason}</span>
-                </li>
-              ))}
-            </ul>
-          </article>
-
-          <article className={styles.uploadResultCard}>
-            <h3>제외된 파일</h3>
-            <p>{result.rejected?.length || 0}개</p>
-            <ul className={styles.uploadResultList}>
-              {(result.rejected || []).map((entry, index) => (
-                <li key={`${entry.originalName}-${index}`}>
-                  <strong>{entry.originalName}</strong>
-                  <span>{entry.reason}</span>
-                </li>
-              ))}
-            </ul>
-          </article>
-        </div>
       ) : null}
     </section>
   );

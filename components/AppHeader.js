@@ -1,6 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useMemo, useState } from 'react';
+import { clearCachedAuthSession, useAuthSession } from '../lib/client/auth-session';
 import styles from './AppHeader.module.css';
 
 const sections = [
@@ -15,29 +17,8 @@ function cx(...classNames) {
 }
 
 export default function AppHeader() {
-  const [session, setSession] = useState({ authenticated: false, user: null });
+  const session = useAuthSession();
   const [dropdownOpen, setDropdownOpen] = useState(false);
-
-  useEffect(() => {
-    let ignore = false;
-
-    fetch('/api/auth/session', { credentials: 'same-origin' })
-      .then((response) => response.json())
-      .then((payload) => {
-        if (!ignore) {
-          setSession(payload);
-        }
-      })
-      .catch(() => {
-        if (!ignore) {
-          setSession({ authenticated: false, user: null });
-        }
-      });
-
-    return () => {
-      ignore = true;
-    };
-  }, []);
 
   const userName = useMemo(() => {
     return session.user?.name || session.user?.login || '계정';
@@ -47,6 +28,7 @@ export default function AppHeader() {
     try {
       await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
     } finally {
+      clearCachedAuthSession();
       window.location.href = '/';
     }
   }
@@ -54,15 +36,15 @@ export default function AppHeader() {
   return (
     <header className={styles.topbar}>
       <div className={styles['topbar-left']}>
-        <a className={styles.brand} href="/" aria-label="메인 페이지로 이동">
+        <Link className={styles.brand} href="/" aria-label="메인 페이지로 이동">
           <img src="/assets/images/phase-logo.png" alt="Phase Vuln Coach" className={styles['brand-logo-image']} />
-        </a>
+        </Link>
 
         <nav className={styles['menu-left']} aria-label="주요 메뉴">
           {sections.map((section) => (
-            <a key={section.id} className={styles['menu-link']} href={`/#${section.id}`}>
+            <Link key={section.id} className={styles['menu-link']} href={`/#${section.id}`}>
               {section.label}
-            </a>
+            </Link>
           ))}
         </nav>
       </div>
@@ -70,8 +52,8 @@ export default function AppHeader() {
       <nav className={styles['menu-right']} aria-label="인증 메뉴">
         {!session.authenticated || !session.user ? (
           <>
-            <a className={styles['auth-link']} href="/login#signin">로그인</a>
-            <a className={styles['auth-link']} href="/login#signup">회원가입</a>
+            <Link className={styles['auth-link']} href="/login#signin">로그인</Link>
+            <Link className={styles['auth-link']} href="/login#signup">회원가입</Link>
           </>
         ) : (
           <div className={styles['account-menu']}>
@@ -91,9 +73,9 @@ export default function AppHeader() {
 
             {dropdownOpen ? (
               <div className={styles['account-dropdown']}>
-                <a className={styles['account-dropdown-link']} href="/dashboard">프로필 보기</a>
-                <a className={styles['account-dropdown-link']} href="/analysis">파일 분석</a>
-                {session.user.isAdmin ? <a className={styles['account-dropdown-link']} href="/admin">관리자 페이지</a> : null}
+                <Link className={styles['account-dropdown-link']} href="/dashboard">프로필 보기</Link>
+                <Link className={styles['account-dropdown-link']} href="/analysis">파일 분석</Link>
+                {session.user.isAdmin ? <Link className={styles['account-dropdown-link']} href="/admin">관리자 페이지</Link> : null}
                 <button type="button" className={cx('account-dropdown-link', 'account-dropdown-button')} onClick={handleLogout}>
                   로그아웃
                 </button>

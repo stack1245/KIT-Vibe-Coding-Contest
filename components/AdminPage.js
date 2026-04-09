@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { deleteAdminUserAction, listAdminUsersAction } from '../app/admin/actions';
+import AppHeader from './AppHeader';
 import DashboardStyles from './DashboardStyles';
 import ConfirmDialog from './ui/ConfirmDialog';
 import Toast from './ui/Toast';
-import { fetchJson } from '../lib/client/fetch-json';
 
 function formatDate(value) {
   const date = new Date(value);
@@ -30,8 +31,8 @@ function formatAuthMethod(user) {
   return '이메일';
 }
 
-export default function AdminPage() {
-  const [users, setUsers] = useState([]);
+export default function AdminPage({ initialUsers = [] }) {
+  const [users, setUsers] = useState(initialUsers);
   const [feedback, setFeedback] = useState('');
   const [toast, setToast] = useState({ message: '', type: 'success' });
   const [targetUserId, setTargetUserId] = useState(null);
@@ -39,20 +40,21 @@ export default function AdminPage() {
   async function loadUsers() {
     try {
       setFeedback('');
-      const payload = await fetchJson('/api/admin/users');
-      setUsers(payload.users || []);
-    } catch {
+      const nextUsers = await listAdminUsersAction();
+      setUsers(Array.isArray(nextUsers) ? nextUsers : []);
+    } catch (error) {
+      setFeedback(error.message || '회원 목록을 불러오지 못했습니다.');
       window.location.href = '/dashboard';
     }
   }
 
   useEffect(() => {
-    loadUsers();
-  }, []);
+    setUsers(initialUsers);
+  }, [initialUsers]);
 
   async function handleDeleteUser() {
     try {
-      await fetchJson(`/api/admin/users/${targetUserId}`, { method: 'DELETE' });
+      await deleteAdminUserAction(targetUserId);
       setFeedback('회원 계정을 삭제했습니다.');
       setToast({ message: '회원 계정을 삭제했습니다.', type: 'success' });
       setTargetUserId(null);
@@ -67,15 +69,8 @@ export default function AdminPage() {
   return (
     <div className="dashboard-page">
       <DashboardStyles />
+      <AppHeader />
       <main className="dashboard-shell">
-        <header className="dashboard-head">
-          <a className="dashboard-home" href="/">Phase Vuln Coach</a>
-          <div className="dashboard-links">
-            <a href="/dashboard">대시보드</a>
-            <a href="/analysis">파일 분석</a>
-          </div>
-        </header>
-
         <section className="dashboard-card">
           <p className="dashboard-eyebrow">Admin Console</p>
           <h1>회원정보 관리</h1>

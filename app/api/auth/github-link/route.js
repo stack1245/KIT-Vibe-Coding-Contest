@@ -1,10 +1,21 @@
 import { NextResponse } from 'next/server';
-import { getSessionUser, setAuthenticatedSession } from '../../../../../lib/server/auth';
-import { unlinkGitHubFromUser } from '../../../../../lib/server/database';
-import { commitSession, getSession } from '../../../../../lib/server/session';
 
-export async function DELETE() {
-  const session = await getSession();
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+export const runtime = 'nodejs';
+
+export async function DELETE(request) {
+  if (!request) {
+    return NextResponse.json({ ok: false, message: '잘못된 요청입니다.' }, { status: 400 });
+  }
+
+  const [{ getSessionUser, setAuthenticatedSession }, { unlinkGitHubFromUser }, { commitSession, getSession }] = await Promise.all([
+    import('../../../../lib/server/auth'),
+    import('../../../../lib/server/database'),
+    import('../../../../lib/server/session'),
+  ]);
+  const session = await getSession(request);
   const user = getSessionUser(session);
 
   if (!user) {

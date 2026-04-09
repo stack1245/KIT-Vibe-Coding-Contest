@@ -1,9 +1,13 @@
 import { redirect } from 'next/navigation';
-import AnalysisPage from '../../components/AnalysisPage';
-import { getSessionUser } from '../../lib/server/auth';
-import { getSession } from '../../lib/server/session';
+import AnalysisPageClientOnly from '../../components/AnalysisPageClientOnly';
 
 export default async function AnalysisRoutePage() {
+  const [{ getSessionUser }, configModule, databaseModule, { getSession }] = await Promise.all([
+    import('../../lib/server/auth'),
+    import('../../lib/server/config'),
+    import('../../lib/server/database'),
+    import('../../lib/server/session'),
+  ]);
   const session = await getSession();
   const user = getSessionUser(session);
 
@@ -11,5 +15,20 @@ export default async function AnalysisRoutePage() {
     redirect('/login#signin');
   }
 
-  return <AnalysisPage />;
+  const initialReports = databaseModule.listAnalysisReportsByUser(user.id, 100);
+  const preferences = databaseModule.getUserPreferences(user.id);
+  const githubConfig = configModule.getGitHubConfig();
+
+  return (
+    <AnalysisPageClientOnly
+      initialReports={initialReports}
+      preferences={preferences}
+      github={{
+        enabled: configModule.hasGitHubConfig(githubConfig),
+        connected: Boolean(user.githubConnected),
+        repoAccess: Boolean(user.githubRepoAccess),
+        linkUrl: '/auth/github?mode=link',
+      }}
+    />
+  );
 }

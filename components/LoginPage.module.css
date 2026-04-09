@@ -1,4 +1,4 @@
-.feedback-toast { position: fixed; top: 20px; right: 20px; z-index: 60; width: min(calc(100vw - 32px), 360px); padding: 14px 16px; border: 1px solid transparent; border-radius: 20px; box-shadow: 0 24px 60px rgba(0,0,0,0.55); backdrop-filter: blur(18px); opacity: 0; pointer-events: none; transform: translateY(-10px); transition: opacity 0.2s ease, transform 0.2s ease; }
+.feedback-toast { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 88px); right: 20px; z-index: 1100; width: min(calc(100vw - 32px), 360px); padding: 14px 16px; border: 1px solid transparent; border-radius: 20px; box-shadow: 0 24px 60px rgba(0,0,0,0.55); backdrop-filter: blur(18px); opacity: 0; pointer-events: none; transform: translateY(-10px); transition: opacity 0.2s ease, transform 0.2s ease; }
 .feedback-toast.is-visible { opacity: 1; transform: translateY(0); }
 .feedback-toast.error { background: rgba(239, 68, 68, 0.12); border-color: rgba(248, 113, 113, 0.28); color: #fecaca; }
 .feedback-toast.success { background: rgba(16, 185, 129, 0.12); border-color: rgba(52, 211, 153, 0.28); color: #bbf7d0; }
@@ -29,10 +29,13 @@
 .field label { color: var(--text-title); font-size: 14px; font-weight: 600; }
 .inline-field { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
 .field input { width: 100%; border: 1px solid rgba(255,255,255,0.1); border-radius: 18px; padding: 14px 16px; background: rgba(255,255,255,0.03); color: var(--text-title); outline: none; box-shadow: inset 0 1px 0 rgba(255,255,255,0.03); }
+.field input::selection { background: rgba(255,255,255,0.18); color: var(--text-title); }
 .field input::placeholder { color: var(--text-dim); }
 .field input:focus { border-color: rgba(255,255,255,0.18); background: rgba(255,255,255,0.05); }
 .field input:disabled, .field input:read-only { opacity: 0.6; }
 .inline-action-button { border: 1px solid rgba(255,255,255,0.12); border-radius: 16px; padding: 0 16px; background: rgba(255,255,255,0.08); color: var(--text-title); font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.forgot-link { align-self: flex-end; border: none; padding: 0; background: transparent; color: var(--text-sub); font-size: 13px; font-weight: 700; cursor: pointer; }
+.forgot-link:hover { color: var(--text-title); }
 .form-footer { display: flex; flex-direction: column; gap: 16px; margin-top: auto; padding-top: 8px; }
 .form-footer p { color: var(--text-sub); font-size: 14px; text-align: center; }
 .text-link { border: none; background: transparent; color: var(--text-title); font-weight: 700; cursor: pointer; }
@@ -41,12 +44,19 @@
 .verification-dialog { position: relative; width: min(100%, 380px); display: flex; flex-direction: column; gap: 16px; padding: 26px; border: 1px solid rgba(255,255,255,0.08); border-radius: 24px; background: rgba(8,8,10,0.96); box-shadow: var(--shadow-lg); }
 .verification-dialog h2 { margin: 0; color: var(--text-title); font-size: 26px; letter-spacing: -0.04em; }
 .verification-dialog input { width: 100%; border: 1px solid rgba(255,255,255,0.1); border-radius: 18px; padding: 14px 16px; background: rgba(255,255,255,0.03); color: var(--text-title); outline: none; }
+.verification-dialog input::selection { background: rgba(255,255,255,0.18); color: var(--text-title); }
 .verification-dialog input:focus { border-color: rgba(255,255,255,0.18); background: rgba(255,255,255,0.05); }
+.modal-description { margin: 0; color: var(--text-sub); font-size: 14px; line-height: 1.6; }
+.modal-note { margin: -4px 0 0; color: var(--text-dim); font-size: 12px; line-height: 1.5; }
+.modal-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.secondary-button { width: 100%; border: 1px solid rgba(255,255,255,0.12); border-radius: 18px; padding: 14px 16px; background: rgba(255,255,255,0.06); color: var(--text-title); font-size: 14px; font-weight: 700; cursor: pointer; }
+.secondary-button:hover { transform: translateY(-1px); }
 
 @media (max-width: 640px) {
-  .feedback-toast { top: 12px; right: 12px; width: min(calc(100vw - 24px), 360px); }
+  .feedback-toast { top: calc(env(safe-area-inset-top, 0px) + 80px); right: 12px; width: min(calc(100vw - 24px), 360px); }
   .auth-shell { padding: 96px 14px 24px; }
   .auth-card { min-height: 680px; padding: 22px; }
   .inline-field { grid-template-columns: 1fr; }
   .inline-action-button { min-height: 48px; }
+  .modal-actions { grid-template-columns: 1fr; }
 }

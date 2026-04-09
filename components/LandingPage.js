@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { clearCachedAuthSession, useAuthSession } from '../lib/client/auth-session';
 import styles from './LandingPage.module.css';
 
 const sections = [
@@ -15,30 +16,36 @@ function cx(...classNames) {
 }
 
 export default function LandingPage() {
-  const [session, setSession] = useState({ authenticated: false, user: null });
+  const session = useAuthSession();
   const [activeSection, setActiveSection] = useState(0);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [introImageOpen, setIntroImageOpen] = useState(false);
   const [toast, setToast] = useState('');
   const currentSectionRef = useRef(0);
-  const isAnimatingRef = useRef(false);
-  const goToSectionRef = useRef(() => {});
+  const isNavigatingRef = useRef(false);
+  const wheelDeltaRef = useRef(0);
   const animationFrameRef = useRef(null);
+  const goToSectionRef = useRef(() => {});
 
   useEffect(() => {
-    let ignore = false;
+    const HEADER_OFFSET = 72;
+    const WHEEL_THRESHOLD = 72;
+    const ANIMATION_DURATION_MS = 820;
 
-    fetch('/api/auth/session', { credentials: 'same-origin' })
-      .then((response) => response.json())
-      .then((payload) => {
-        if (!ignore) {
-          setSession(payload);
-        }
-      })
-      .catch(() => {
-        if (!ignore) {
-          setSession({ authenticated: false, user: null });
-        }
-      });
+    const easeInOutCubic = (progress) => {
+      if (progress < 0.5) {
+        return 4 * progress * progress * progress;
+      }
+
+      return 1 - ((-2 * progress + 2) ** 3) / 2;
+    };
+
+    const stopScrollAnimation = () => {
+      if (animationFrameRef.current) {
+        window.cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+    };
 
     const onScroll = () => {
       const middle = window.scrollY + window.innerHeight * 0.45;
@@ -57,41 +64,12 @@ export default function LandingPage() {
         }
       });
 
+      if (currentSectionRef.current === nextIndex) {
+        return;
+      }
+
       currentSectionRef.current = nextIndex;
       setActiveSection(nextIndex);
-    };
-
-    const easeInOutCubic = (time) => {
-      return time < 0.5
-        ? 4 * time * time * time
-        : 1 - Math.pow(-2 * time + 2, 3) / 2;
-    };
-
-    const smoothScrollTo = (targetY, duration = 760) => {
-      const startY = window.pageYOffset;
-      const diff = targetY - startY;
-      const startTime = performance.now();
-
-      isAnimatingRef.current = true;
-
-      const step = (currentTime) => {
-        const elapsed = currentTime - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-        const eased = easeInOutCubic(progress);
-
-        window.scrollTo(0, startY + diff * eased);
-
-        if (progress < 1) {
-          animationFrameRef.current = window.requestAnimationFrame(step);
-          return;
-        }
-
-        isAnimatingRef.current = false;
-        animationFrameRef.current = null;
-        onScroll();
-      };
-
-      animationFrameRef.current = window.requestAnimationFrame(step);
     };
 
     const goToSection = (index) => {
@@ -102,29 +80,86 @@ export default function LandingPage() {
         return;
       }
 
+      const targetTop = Math.max(
+        0,
+        element.getBoundingClientRect().top + window.scrollY - HEADER_OFFSET
+      );
+      const startTop = window.scrollY;
+      const distance = targetTop - startTop;
+
+      if (Math.abs(distance) < 2) {
+        currentSectionRef.current = safeIndex;
+        setActiveSection(safeIndex);
+        isNavigatingRef.current = false;
+        wheelDeltaRef.current = 0;
+        return;
+      }
+
       currentSectionRef.current = safeIndex;
       setActiveSection(safeIndex);
-      smoothScrollTo(element.offsetTop);
+      isNavigatingRef.current = true;
+      wheelDeltaRef.current = 0;
+      stopScrollAnimation();
+
+      const animationStartedAt = performance.now();
+
+      const animate = (timestamp) => {
+        const elapsed = timestamp - animationStartedAt;
+        const progress = Math.min(elapsed / ANIMATION_DURATION_MS, 1);
+        const easedProgress = easeInOutCubic(progress);
+        const nextTop = startTop + distance * easedProgress;
+
+        window.scrollTo(0, nextTop);
+
+        if (progress < 1) {
+          animationFrameRef.current = window.requestAnimationFrame(animate);
+          return;
+        }
+
+        window.scrollTo(0, targetTop);
+        animationFrameRef.current = null;
+        isNavigatingRef.current = false;
+      };
+
+      animationFrameRef.current = window.requestAnimationFrame(animate);
     };
 
     goToSectionRef.current = goToSection;
 
     const handleWheelNavigation = (event) => {
-      event.preventDefault();
-
-      if (isAnimatingRef.current) {
+      if (Math.abs(event.deltaY) < 4) {
         return;
       }
 
-      if (event.deltaY > 35 && currentSectionRef.current < sections.length - 1) {
+      if (isNavigatingRef.current) {
+        event.preventDefault();
+        return;
+      }
+
+      wheelDeltaRef.current += event.deltaY;
+
+      if (Math.abs(wheelDeltaRef.current) < WHEEL_THRESHOLD) {
+        event.preventDefault();
+        return;
+      }
+
+      event.preventDefault();
+      const nextDirection = wheelDeltaRef.current > 0 ? 1 : -1;
+      wheelDeltaRef.current = 0;
+
+      if (nextDirection > 0 && currentSectionRef.current < sections.length - 1) {
         goToSection(currentSectionRef.current + 1);
-      } else if (event.deltaY < -35 && currentSectionRef.current > 0) {
+        return;
+      }
+
+      if (nextDirection < 0 && currentSectionRef.current > 0) {
         goToSection(currentSectionRef.current - 1);
       }
     };
 
     const handleKeyNavigation = (event) => {
-      if (isAnimatingRef.current) {
+      if (isNavigatingRef.current) {
+        event.preventDefault();
         return;
       }
 
@@ -174,27 +209,48 @@ export default function LandingPage() {
       element.classList.add(styles.visible);
     });
 
-    const handleWindowScroll = () => {
-      if (!isAnimatingRef.current) {
-        onScroll();
-      }
-    };
-
-    window.addEventListener('scroll', handleWindowScroll, { passive: true });
+    window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('wheel', handleWheelNavigation, { passive: false });
     window.addEventListener('keydown', handleKeyNavigation);
     onScroll();
 
     return () => {
-      ignore = true;
       goToSectionRef.current = () => {};
-      if (animationFrameRef.current) {
-        window.cancelAnimationFrame(animationFrameRef.current);
-      }
+      stopScrollAnimation();
       observer.disconnect();
-      window.removeEventListener('scroll', handleWindowScroll);
+      window.removeEventListener('scroll', onScroll);
       window.removeEventListener('wheel', handleWheelNavigation);
       window.removeEventListener('keydown', handleKeyNavigation);
+    };
+  }, []);
+
+  useEffect(() => {
+    let hashFrame = null;
+
+    const handleHashNavigation = () => {
+      const targetId = window.location.hash.replace('#', '').trim();
+      if (!targetId) {
+        return;
+      }
+
+      const targetIndex = sections.findIndex((section) => section.id === targetId);
+      if (targetIndex === -1) {
+        return;
+      }
+
+      hashFrame = window.requestAnimationFrame(() => {
+        goToSectionRef.current(targetIndex);
+      });
+    };
+
+    handleHashNavigation();
+    window.addEventListener('hashchange', handleHashNavigation);
+
+    return () => {
+      if (hashFrame) {
+        window.cancelAnimationFrame(hashFrame);
+      }
+      window.removeEventListener('hashchange', handleHashNavigation);
     };
   }, []);
 
@@ -219,6 +275,7 @@ export default function LandingPage() {
         throw new Error(payload.message || '로그아웃에 실패했습니다.');
       }
 
+      clearCachedAuthSession();
       window.location.href = '/';
     } catch (error) {
       setToast(error.message);
@@ -227,7 +284,7 @@ export default function LandingPage() {
 
   function scrollToSection(id) {
     const targetIndex = sections.findIndex((section) => section.id === id);
-    if (targetIndex === -1 || isAnimatingRef.current) {
+    if (targetIndex === -1) {
       return;
     }
 
@@ -380,7 +437,20 @@ export default function LandingPage() {
               단순히 취약점을 찾는 데서 끝나는 것이 아니라, <strong>왜 위험한지</strong>, <strong>어떻게 고쳐야 하는지</strong>,
               <strong>앞으로 비슷한 실수를 어떻게 피할지</strong>까지 개발자 눈높이에 맞춰 정리해 줍니다.
             </div>
-            <div className={cx('ai-box', 'reveal', 'from-right')} />
+            <div className={cx('ai-box', 'ai-image-box', 'reveal', 'from-right')}>
+              <button
+                type="button"
+                className={styles['ai-image-trigger']}
+                aria-label="소개 이미지 확대"
+                onClick={() => setIntroImageOpen(true)}
+              >
+                <img
+                  src="/assets/images/landing-intro-second.jpg"
+                  alt="Phase Vuln Coach 소개 이미지"
+                  className={styles['ai-box-image']}
+                />
+              </button>
+            </div>
           </div>
         </section>
 
@@ -425,6 +495,31 @@ export default function LandingPage() {
           </div>
         </section>
       </main>
+
+      {introImageOpen ? (
+        <div className={styles['image-lightbox']}>
+          <button
+            type="button"
+            className={styles['image-lightbox-backdrop']}
+            aria-label="소개 이미지 닫기"
+            onClick={() => setIntroImageOpen(false)}
+          />
+          <div className={styles['image-lightbox-dialog']} role="dialog" aria-modal="true">
+            <button
+              type="button"
+              className={styles['image-lightbox-close']}
+              onClick={() => setIntroImageOpen(false)}
+            >
+              닫기
+            </button>
+            <img
+              src="/assets/images/landing-intro-second.jpg"
+              alt="Phase Vuln Coach 소개 이미지 확대본"
+              className={styles['image-lightbox-image']}
+            />
+          </div>
+        </div>
+      ) : null}
 
       <div className={cx('site-toast', toast && 'is-visible', toast && 'is-error')} hidden={!toast} aria-live="polite">
         {toast}
