@@ -12,7 +12,7 @@ export default async function AnalysisRoutePage() {
   const user = getSessionUser(session);
 
   if (!user) {
-    redirect('/login#signin');
+    redirect('/login?returnTo=%2Fanalysis#signin');
   }
 
   const initialReports = databaseModule.listAnalysisReportsByUser(user.id, 100);
@@ -27,7 +27,7 @@ export default async function AnalysisRoutePage() {
         enabled: configModule.hasGitHubConfig(githubConfig),
         connected: Boolean(user.githubConnected),
         repoAccess: Boolean(user.githubRepoAccess),
-        linkUrl: '/auth/github?mode=link',
+        linkUrl: '/auth/github?mode=link&returnTo=%2Fanalysis',
       }}
     />
   );

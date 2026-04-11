@@ -9,7 +9,7 @@ export default async function AdminRoutePage() {
   const user = getSessionUser(session);
 
   if (!user) {
-    redirect('/login#signin');
+    redirect('/login?returnTo=%2Fadmin#signin');
   }
 
   if (!user.isAdmin) {

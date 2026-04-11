@@ -14,9 +14,18 @@ const allowedDevOrigins = [
     .filter(Boolean),
 ];
 
+const isDevelopment = process.env.NODE_ENV === 'development';
+const outputFileTracingExcludes = {
+  '/analysis': ['next.config.mjs'],
+  '/api/analysis/upload': ['next.config.mjs'],
+};
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  distDir: isDevelopment ? '.next-webpack-dev' : '.next',
   allowedDevOrigins,
+  deploymentId: process.env.DEPLOYMENT_VERSION || undefined,
+  outputFileTracingExcludes,
   async headers() {
     return [
       {

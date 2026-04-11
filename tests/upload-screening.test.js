@@ -4,9 +4,11 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  getUploadFileSizeErrorMessage,
   normalizeStoredUploadRelativePath,
   saveUploadedFile,
   screenUploadedFile,
+  UPLOAD_MAX_FILE_BYTES,
   UPLOAD_ROOT_DIR,
 } from '../lib/server/upload-screening';
 
@@ -133,5 +135,59 @@ describe('upload path normalization', () => {
     expect(result.accepted).toBe(true);
     expect(result.category).toBe('jar');
     expect(result.reason).toContain('JAR');
+  });
+
+  it('rejects archives with unsafe parent-directory entries', async () => {
+    const zipBuffer = createStoredZipBuffer([
+      {
+        name: '../escape.txt',
+        content: 'owned',
+      },
+    ]);
+
+    const result = await screenUploadedFile({
+      fileName: 'unsafe.zip',
+      contentType: 'application/zip',
+      previewBuffer: zipBuffer.subarray(0, 32 * 1024),
+      file: {
+        size: zipBuffer.length,
+        async arrayBuffer() {
+          return zipBuffer;
+        },
+      },
+    });
+
+    expect(result.accepted).toBe(false);
+    expect(result.category).toBe('unsafe-archive');
+  });
+
+  it('rejects oversize uploads before reading the full body', async () => {
+    const result = await screenUploadedFile({
+      fileName: 'oversize.zip',
+      contentType: 'application/zip',
+      previewBuffer: Buffer.alloc(0),
+      file: {
+        size: Number(UPLOAD_MAX_FILE_BYTES + 1n),
+        async arrayBuffer() {
+          throw new Error('arrayBuffer should not be called');
+        },
+      },
+    });
+
+    expect(result.accepted).toBe(false);
+    expect(result.reason).toBe(getUploadFileSizeErrorMessage(UPLOAD_MAX_FILE_BYTES + 1n));
+  });
+
+  it('refuses to persist files larger than the single-upload limit', async () => {
+    await expect(saveUploadedFile({
+      userId: 777,
+      originalName: 'too-large.zip',
+      file: {
+        size: Number(UPLOAD_MAX_FILE_BYTES + 1n),
+        async arrayBuffer() {
+          throw new Error('arrayBuffer should not be called');
+        },
+      },
+    })).rejects.toThrow(getUploadFileSizeErrorMessage(UPLOAD_MAX_FILE_BYTES + 1n));
   });
 });

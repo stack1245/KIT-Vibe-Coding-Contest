@@ -16,6 +16,20 @@ function redirectWithParams(appOrigin, pathname, params = {}, hash = '') {
   return NextResponse.redirect(url);
 }
 
+function sanitizeReturnTo(value) {
+  const nextValue = String(value || '').trim();
+
+  if (!nextValue.startsWith('/') || nextValue.startsWith('//')) {
+    return '';
+  }
+
+  if (nextValue.startsWith('/auth/') || nextValue.startsWith('/api/')) {
+    return '';
+  }
+
+  return nextValue;
+}
+
 export async function GET(request) {
   if (!request) {
     return NextResponse.redirect(new URL('/login', 'http://localhost:3000'));
@@ -32,14 +46,15 @@ export async function GET(request) {
     : request.nextUrl.searchParams.get('mode') === 'signup'
       ? 'signup'
       : 'signin';
+  const returnTo = sanitizeReturnTo(request.nextUrl.searchParams.get('returnTo'));
   const session = await getSession(request);
 
   if (!configModule.hasGitHubConfig(config)) {
-    return redirectWithParams(appOrigin, '/login', { error: 'config_missing' }, mode);
+    return redirectWithParams(appOrigin, '/login', { error: 'config_missing', returnTo }, mode);
   }
 
   if (mode === 'link' && !session.accountId) {
-    return redirectWithParams(appOrigin, '/login', { error: 'login_required' }, 'signin');
+    return redirectWithParams(appOrigin, '/login', { error: 'login_required', returnTo }, 'signin');
   }
 
   const state = configModule.generateOAuthState();
@@ -48,6 +63,7 @@ export async function GET(request) {
     oauthState: state,
     oauthMode: mode,
     oauthAccountId: session.accountId || null,
+    oauthReturnTo: returnTo || session.oauthReturnTo || null,
   };
 
   const authorizeUrl = new URL('https://github.com/login/oauth/authorize');

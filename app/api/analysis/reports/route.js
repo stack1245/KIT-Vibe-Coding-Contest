@@ -51,7 +51,7 @@ export async function DELETE(request) {
       import('../../../../lib/server/auth'),
       import('../../../../lib/server/database'),
       import('../../../../lib/server/session'),
-      import('../../../../lib/server/upload-screening'),
+      import('../../../../lib/server/project-paths'),
     ]);
     const session = await getSession(request);
     const user = getSessionUser(session);

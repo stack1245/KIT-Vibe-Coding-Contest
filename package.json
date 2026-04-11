@@ -4,7 +4,7 @@
   "private": true,
   "description": "Phase Vuln Coach Next.js application with local auth, GitHub OAuth, and admin tools",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --webpack",
     "build": "next build",
     "start": "next start",
     "test": "vitest run"

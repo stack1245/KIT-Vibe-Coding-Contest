@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { deleteAdminUserAction, listAdminUsersAction } from '../app/admin/actions';
+import { useRouter } from 'next/navigation';
+import { fetchJson } from '../lib/client/fetch-json';
 import AppHeader from './AppHeader';
 import DashboardStyles from './DashboardStyles';
 import ConfirmDialog from './ui/ConfirmDialog';
@@ -32,6 +33,7 @@ function formatAuthMethod(user) {
 }
 
 export default function AdminPage({ initialUsers = [] }) {
+  const router = useRouter();
   const [users, setUsers] = useState(initialUsers);
   const [feedback, setFeedback] = useState('');
   const [toast, setToast] = useState({ message: '', type: 'success' });
@@ -40,11 +42,12 @@ export default function AdminPage({ initialUsers = [] }) {
   async function loadUsers() {
     try {
       setFeedback('');
-      const nextUsers = await listAdminUsersAction();
+      const payload = await fetchJson('/api/admin/users');
+      const nextUsers = payload.users;
       setUsers(Array.isArray(nextUsers) ? nextUsers : []);
     } catch (error) {
       setFeedback(error.message || '회원 목록을 불러오지 못했습니다.');
-      window.location.href = '/dashboard';
+      router.replace('/dashboard');
     }
   }
 
@@ -54,7 +57,9 @@ export default function AdminPage({ initialUsers = [] }) {
 
   async function handleDeleteUser() {
     try {
-      await deleteAdminUserAction(targetUserId);
+      await fetchJson(`/api/admin/users/${targetUserId}`, {
+        method: 'DELETE',
+      });
       setFeedback('회원 계정을 삭제했습니다.');
       setToast({ message: '회원 계정을 삭제했습니다.', type: 'success' });
       setTargetUserId(null);

@@ -10,10 +10,14 @@ Phase Vuln Coach는 Next.js App Router 기반의 웹 애플리케이션입니다
 
 ```env
 APP_BASE_URL=http://localhost:3000
+TRUST_PROXY_HEADERS=false
 SESSION_SECRET=replace-with-a-long-random-secret
+DEPLOYMENT_VERSION=
+NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=
 
 GITHUB_CLIENT_ID=
 GITHUB_CLIENT_SECRET=
+GITHUB_TOKEN_ENCRYPTION_KEY=
 GITHUB_REDIRECT_URI=http://localhost:3000/auth/github/callback
 GITHUB_SCOPE=read:user user:email
 
@@ -25,6 +29,11 @@ SMTP_SECURE=false
 SMTP_USER=
 SMTP_PASS=
 SMTP_FROM=Phase Vuln Coach <no-reply@example.com>
+
+UPLOAD_TOTAL_LIMIT_BYTES=2147483648
+UPLOAD_MAX_FILE_BYTES=268435456
+MAX_SAFE_ARCHIVE_ENTRY_COUNT=2000
+MAX_SAFE_ARCHIVE_TOTAL_UNCOMPRESSED_BYTES=536870912
 ```
 
 ### 2. 의존성 설치
@@ -50,12 +59,16 @@ npm start
 ### App
 
 - `APP_BASE_URL`: OAuth 콜백과 절대 URL 계산에 사용하는 기본 주소
+- `TRUST_PROXY_HEADERS`: 프록시가 `X-Forwarded-*` 헤더를 안전하게 정제하는 배포에서만 `true`
 - `SESSION_SECRET`: 세션 서명 키. 운영 환경에서는 반드시 긴 난수 문자열 사용
+- `DEPLOYMENT_VERSION`: 롤링 배포 시 구버전/신버전 자산 혼선을 줄이기 위한 배포 식별자
+- `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`: Server Action 암호화 키. 멀티 인스턴스 또는 여러 빌드 사이에서 동일하게 유지해야 액션 ID mismatch를 줄일 수 있음
 
 ### GitHub OAuth
 
 - `GITHUB_CLIENT_ID`: GitHub OAuth App Client ID
 - `GITHUB_CLIENT_SECRET`: GitHub OAuth App Client Secret
+- `GITHUB_TOKEN_ENCRYPTION_KEY`: GitHub access token을 DB에 암호화 저장할 때 사용하는 키. 비워두면 `SESSION_SECRET`를 사용
 - `GITHUB_REDIRECT_URI`: GitHub OAuth 콜백 주소
 - `GITHUB_SCOPE`: 기본 권한 범위. 일반적으로 `read:user user:email`
 
@@ -71,6 +84,13 @@ npm start
 - `SMTP_USER`: SMTP 로그인 계정
 - `SMTP_PASS`: SMTP 비밀번호 또는 앱 비밀번호
 - `SMTP_FROM`: 발신자 표시 이름과 주소
+
+### Upload Screening
+
+- `UPLOAD_TOTAL_LIMIT_BYTES`: 서버가 저장할 전체 업로드 용량 상한
+- `UPLOAD_MAX_FILE_BYTES`: 파일 1개당 허용 크기 상한
+- `MAX_SAFE_ARCHIVE_ENTRY_COUNT`: 압축 파일 내부 항목 수 상한
+- `MAX_SAFE_ARCHIVE_TOTAL_UNCOMPRESSED_BYTES`: 압축 해제 기준 총 크기 상한
 
 ## Gmail SMTP 참고
 
@@ -120,6 +140,12 @@ Gmail은 일반 계정 비밀번호로 SMTP 로그인이 막힐 수 있습니다
 
 ```bash
 npm test
+```
+
+프로덕션 빌드 검증은 아래 명령을 사용합니다.
+
+```bash
+npm run build
 ```
 
 기본 테스트는 아래 범위를 검증합니다.
@@ -218,3 +244,9 @@ npm test
 - SQLite 스키마는 `db/schema.sql`에 버전 관리되며, 런타임 DB 파일은 커밋되지 않습니다.
 - 이메일 인증 완료 상태에는 만료 시간이 적용됩니다.
 - 기본 보안 헤더는 `next.config.mjs`에서 설정합니다.
+
+## 배포 메모
+
+- `next.config.mjs`는 `DEPLOYMENT_VERSION`을 읽어 deployment skew protection을 켭니다.
+- 롤링 배포나 멀티 인스턴스 환경에서는 `DEPLOYMENT_VERSION`은 배포마다 새 값으로 바꾸고, `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`는 모든 인스턴스에서 동일하게 유지하세요.
+- 로컬 개발 중 `Failed to find Server Action` 오류가 보이면 브라우저를 새로고침하거나 개발 서버를 다시 띄워 구버전 번들을 정리하세요.

@@ -46,6 +46,15 @@ function removeReportFiles(sourceFiles, uploadRootDir) {
   });
 }
 
+function toUploadByteSize(value) {
+  const numericValue = Number(value || 0);
+  if (!Number.isFinite(numericValue) || numericValue <= 0) {
+    return 0n;
+  }
+
+  return BigInt(Math.floor(numericValue));
+}
+
 export async function getAnalysisJobStatusAction(jobId) {
   const [{ user }, databaseModule, analysisJobRunnerModule] = await Promise.all([
     getAuthenticatedUserContext(),
@@ -58,10 +67,12 @@ export async function getAnalysisJobStatusAction(jobId) {
     throw new Error('잘못된 작업 ID입니다.');
   }
 
-  const job = analysisJobRunnerModule.ensureAnalysisJobRunning(numericJobId) || databaseModule.findAnalysisJobById(numericJobId);
-  if (!job || job.userId !== user.id) {
+  const existingJob = databaseModule.findAnalysisJobById(numericJobId);
+  if (!existingJob || existingJob.userId !== user.id) {
     throw new Error('작업을 찾을 수 없습니다.');
   }
+
+  const job = analysisJobRunnerModule.ensureAnalysisJobRunning(numericJobId) || existingJob;
 
   const report = job.reportId ? databaseModule.findAnalysisReportById(job.reportId) : null;
   return { ok: true, job, report };
@@ -99,7 +110,7 @@ export async function deleteAnalysisReportAction(reportId) {
   const [{ user }, databaseModule, { UPLOAD_ROOT_DIR }] = await Promise.all([
     getAuthenticatedUserContext(),
     import('../../lib/server/database'),
-    import('../../lib/server/upload-screening'),
+    import('../../lib/server/project-paths'),
   ]);
   const numericReportId = Number(reportId);
 
@@ -119,9 +130,10 @@ export async function deleteAnalysisReportAction(reportId) {
 }
 
 export async function toggleAnalysisReportShareAction(reportId, enabled, origin = '') {
-  const [{ user }, databaseModule] = await Promise.all([
+  const [{ user }, databaseModule, configModule] = await Promise.all([
     getAuthenticatedUserContext(),
     import('../../lib/server/database'),
+    import('../../lib/server/config'),
   ]);
   const numericReportId = Number(reportId);
 
@@ -143,7 +155,7 @@ export async function toggleAnalysisReportShareAction(reportId, enabled, origin 
     throw new Error('공유 상태를 저장하지 못했습니다.');
   }
 
-  const resolvedOrigin = String(origin || '').trim() || 'http://localhost:3000';
+  const resolvedOrigin = configModule.getAppOrigin();
   const shareUrl = updatedReport.shareEnabled && updatedReport.shareToken
     ? `${resolvedOrigin}/shared/${updatedReport.shareToken}`
     : '';
@@ -231,7 +243,13 @@ export async function importGitHubRepositoryAction(fullName, ref = '') {
     fullName: normalizedFullName,
     ref: normalizedRef,
   });
+  const archiveSize = toUploadByteSize(archive.buffer.length);
   const file = createBufferBackedFile(archive.buffer, archive.fileName, archive.contentType);
+
+  const rejected = [];
+  const accepted = [];
+  let job = null;
+
   const previewBuffer = archive.buffer.subarray(0, 32 * 1024);
   const screening = await uploadScreeningModule.screenUploadedFile({
     fileName: archive.fileName,
@@ -239,10 +257,6 @@ export async function importGitHubRepositoryAction(fullName, ref = '') {
     previewBuffer,
     file,
   });
-
-  const rejected = [];
-  const accepted = [];
-  let job = null;
 
   if (!screening.accepted) {
     rejected.push({
@@ -253,51 +267,48 @@ export async function importGitHubRepositoryAction(fullName, ref = '') {
       category: screening.category,
       signals: Array.isArray(screening.signals) ? screening.signals : [],
     });
+  } else if (currentUploadSize + archiveSize > uploadScreeningModule.UPLOAD_TOTAL_LIMIT_BYTES) {
+    rejected.push({
+      originalName: archive.fileName,
+      repository: archive.repository.fullName,
+      reason: `${uploadScreeningModule.UPLOAD_CAPACITY_ERROR_MESSAGE} (남은 공간 부족: ${uploadScreeningModule.toDisplayBytes(archive.buffer.length)})`,
+      source: 'capacity',
+    });
   } else {
-    const fileSize = BigInt(archive.buffer.length);
-    if (currentUploadSize + fileSize > uploadScreeningModule.UPLOAD_TOTAL_LIMIT_BYTES) {
-      rejected.push({
-        originalName: archive.fileName,
-        repository: archive.repository.fullName,
-        reason: `${uploadScreeningModule.UPLOAD_CAPACITY_ERROR_MESSAGE} (남은 공간 부족: ${uploadScreeningModule.toDisplayBytes(archive.buffer.length)})`,
-        source: 'capacity',
-      });
-    } else {
-      const stored = await uploadScreeningModule.saveUploadedFile({
-        userId: user.id,
-        file,
-        originalName: archive.fileName,
-      });
+    const stored = await uploadScreeningModule.saveUploadedFile({
+      userId: user.id,
+      file,
+      originalName: archive.fileName,
+    });
 
-      currentUploadSize += BigInt(stored.size);
-      accepted.push({
-        originalName: archive.fileName,
-        repository: archive.repository.fullName,
-        storedPath: stored.relativePath,
-        size: stored.size,
-        reason: screening.reason,
-        source: screening.source,
-        category: screening.category,
-        signals: Array.isArray(screening.signals) ? screening.signals : [],
-      });
+    currentUploadSize += toUploadByteSize(stored.size);
+    accepted.push({
+      originalName: archive.fileName,
+      repository: archive.repository.fullName,
+      storedPath: stored.relativePath,
+      size: stored.size,
+      reason: screening.reason,
+      source: screening.source,
+      category: screening.category,
+      signals: Array.isArray(screening.signals) ? screening.signals : [],
+    });
 
-      job = databaseModule.createAnalysisJob(user.id, {
-        acceptedFiles: [
-          {
-            originalName: archive.fileName,
-            relativePath: stored.relativePath,
-            storedPath: stored.relativePath,
-            size: stored.size,
-            category: screening.category || '',
-            source: screening.source || 'github',
-            reason: screening.reason || '',
-            signals: screening.signals || [],
-          },
-        ],
-        rejectedFiles: rejected,
-      });
-      startAnalysisJob(job);
-    }
+    job = databaseModule.createAnalysisJob(user.id, {
+      acceptedFiles: [
+        {
+          originalName: archive.fileName,
+          relativePath: stored.relativePath,
+          storedPath: stored.relativePath,
+          size: stored.size,
+          category: screening.category || '',
+          source: screening.source || 'github',
+          reason: screening.reason || '',
+          signals: screening.signals || [],
+        },
+      ],
+      rejectedFiles: rejected,
+    });
+    startAnalysisJob(job);
   }
 
   return {

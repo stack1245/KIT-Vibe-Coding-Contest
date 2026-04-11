@@ -19,6 +19,20 @@ const initialResetForm = {
   confirmPassword: '',
 };
 
+function sanitizeReturnTo(value) {
+  const nextValue = String(value || '').trim();
+
+  if (!nextValue.startsWith('/') || nextValue.startsWith('//')) {
+    return '';
+  }
+
+  if (nextValue.startsWith('/auth/') || nextValue.startsWith('/api/')) {
+    return '';
+  }
+
+  return nextValue;
+}
+
 function cx(...classNames) {
   return classNames.filter(Boolean).map((className) => styles[className]).join(' ');
 }
@@ -48,16 +62,33 @@ export default function LoginPage() {
   });
 
   const githubLabel = useMemo(() => copy[tab].githubLabel, [tab]);
+  const requestedReturnTo = useMemo(() => sanitizeReturnTo(searchParams.get('returnTo')), [searchParams]);
+  const githubAuthUrl = useMemo(() => {
+    const params = new URLSearchParams({ mode: tab });
+
+    if (requestedReturnTo) {
+      params.set('returnTo', requestedReturnTo);
+    }
+
+    return `/auth/github?${params.toString()}`;
+  }, [requestedReturnTo, tab]);
   const normalizedSignupEmail = signupForm.email.trim().toLowerCase();
   const signupReady = Boolean(verifiedEmail) && verifiedEmail === normalizedSignupEmail;
-  const preferredLanding = session.preferences?.preferredLanding || '/dashboard';
+  const preferredLanding = requestedReturnTo || session.preferences?.preferredLanding || '/dashboard';
 
   useEffect(() => {
     const hash = window.location.hash === '#signup' ? 'signup' : 'signin';
     setTab(hash);
 
     fetch('/api/auth/config', { credentials: 'same-origin' })
-      .then((response) => response.json())
+      .then(async (response) => {
+        const config = await response.json().catch(() => null);
+        if (!response.ok || !config) {
+          throw new Error('invalid-auth-config-response');
+        }
+
+        return config;
+      })
       .then((config) => {
         if (session.authenticated && session.user) {
           router.replace(preferredLanding);
@@ -92,6 +123,7 @@ export default function LoginPage() {
         }
       })
       .catch(() => {
+        setGitHubEnabled(false);
         setGitHubStatus('인증 상태를 불러오지 못했습니다.');
       });
   }, [preferredLanding, router, searchParams, session.authenticated, session.user]);
@@ -249,7 +281,7 @@ export default function LoginPage() {
       });
 
       const nextSession = await loadAuthSession({ force: true });
-      router.push(nextSession.preferences?.preferredLanding || '/dashboard');
+      router.replace(requestedReturnTo || nextSession.preferences?.preferredLanding || '/dashboard');
     } catch (error) {
       setFeedback({ message: error.message, type: 'error' });
     } finally {
@@ -273,7 +305,7 @@ export default function LoginPage() {
       });
 
       const nextSession = await loadAuthSession({ force: true });
-      router.push(nextSession.preferences?.preferredLanding || '/dashboard');
+      router.replace(requestedReturnTo || nextSession.preferences?.preferredLanding || '/dashboard');
     } catch (error) {
       setFeedback({ message: error.message, type: 'error' });
     } finally {
@@ -331,7 +363,7 @@ export default function LoginPage() {
           </header>
 
           <section className={styles['oauth-area']} aria-label="간편 로그인">
-            <button id="github-auth-button" className={styles['github-button']} type="button" disabled={!githubEnabled} onClick={() => (window.location.href = `/auth/github?mode=${tab}`)}>
+            <button id="github-auth-button" className={styles['github-button']} type="button" disabled={!githubEnabled} onClick={() => window.location.assign(githubAuthUrl)}>
               <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56 0-.27-.01-1.18-.02-2.14-3.2.7-3.88-1.36-3.88-1.36-.52-1.33-1.27-1.68-1.27-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.75 1.18 1.75 1.18 1.02 1.75 2.67 1.24 3.32.95.1-.74.4-1.24.72-1.52-2.56-.29-5.26-1.28-5.26-5.69 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.47.11-3.06 0 0 .96-.31 3.15 1.18a10.86 10.86 0 0 1 5.74 0c2.19-1.49 3.15-1.18 3.15-1.18.62 1.59.23 2.77.11 3.06.73.81 1.18 1.84 1.18 3.1 0 4.42-2.7 5.39-5.28 5.68.41.35.78 1.04.78 2.11 0 1.52-.01 2.75-.01 3.12 0 .31.21.68.8.56A11.5 11.5 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z" /></svg>
               <span>{githubLabel}</span>
             </button>

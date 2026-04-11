@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { getAppOrigin, getGitHubConfig, getRequestAppOrigin } from '../lib/server/config';
 
-const ENV_KEYS = ['APP_BASE_URL', 'GITHUB_REDIRECT_URI', 'GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET'];
+const ENV_KEYS = ['APP_BASE_URL', 'GITHUB_REDIRECT_URI', 'GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET', 'TRUST_PROXY_HEADERS'];
 const originalEnv = Object.fromEntries(ENV_KEYS.map((key) => [key, process.env[key]]));
 
 function restoreEnv() {
@@ -42,8 +42,9 @@ describe('config origin helpers', () => {
     expect(getAppOrigin('https://phase.example.com')).toBe('https://phase.example.com');
   });
 
-  it('uses forwarded headers instead of an internal localhost request URL', () => {
+  it('uses forwarded headers only when proxy trust is explicitly enabled', () => {
     delete process.env.APP_BASE_URL;
+    process.env.TRUST_PROXY_HEADERS = 'true';
 
     const request = createRequest({
       url: 'http://localhost:3000/auth/github/callback?code=test',
@@ -62,6 +63,7 @@ describe('config origin helpers', () => {
     process.env.GITHUB_REDIRECT_URI = 'http://localhost:3000/auth/github/callback';
     process.env.GITHUB_CLIENT_ID = 'client-id';
     process.env.GITHUB_CLIENT_SECRET = 'client-secret';
+    process.env.TRUST_PROXY_HEADERS = 'true';
 
     const request = createRequest({
       url: 'http://localhost:3000/auth/github',

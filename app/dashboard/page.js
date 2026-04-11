@@ -36,7 +36,7 @@ export default async function DashboardRoutePage() {
   const user = getSessionUser(session);
 
   if (!user) {
-    redirect('/login#signin');
+    redirect('/login?returnTo=%2Fdashboard#signin');
   }
 
   const config = getGitHubConfig();
@@ -56,7 +56,7 @@ export default async function DashboardRoutePage() {
       preferences={preferences}
       config={{
         enabled: hasGitHubConfig(config),
-        linkUrl: '/auth/github?mode=link',
+        linkUrl: '/auth/github?mode=link&returnTo=%2Fdashboard',
       }}
     />
   );

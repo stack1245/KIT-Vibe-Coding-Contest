@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { clearCachedAuthSession, useAuthSession } from '../lib/client/auth-session';
 import styles from './LandingPage.module.css';
 
@@ -16,6 +17,7 @@ function cx(...classNames) {
 }
 
 export default function LandingPage() {
+  const router = useRouter();
   const session = useAuthSession();
   const [activeSection, setActiveSection] = useState(0);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -276,7 +278,9 @@ export default function LandingPage() {
       }
 
       clearCachedAuthSession();
-      window.location.href = '/';
+      setDropdownOpen(false);
+      router.replace('/');
+      router.refresh();
     } catch (error) {
       setToast(error.message);
     }

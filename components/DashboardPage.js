@@ -1,12 +1,13 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import AppHeader from './AppHeader';
 import DashboardStyles from './DashboardStyles';
 import PageVideoBackdrop from './PageVideoBackdrop';
 import ConfirmDialog from './ui/ConfirmDialog';
 import Toast from './ui/Toast';
-import { loadAuthSession } from '../lib/client/auth-session';
+import { clearCachedAuthSession, loadAuthSession } from '../lib/client/auth-session';
 import { fetchJson } from '../lib/client/fetch-json';
 
 function formatAuthMethod(user) {
@@ -71,6 +72,7 @@ function buildNotifications({ user, reports, jobs }) {
 }
 
 export default function DashboardPage({ user, config, reports = [], jobs = [], preferences }) {
+  const router = useRouter();
   const [profileName, setProfileName] = useState(user.name || '');
   const [preferenceState, setPreferenceState] = useState({
     preferredLanding: preferences?.preferredLanding || '/dashboard',
@@ -88,6 +90,7 @@ export default function DashboardPage({ user, config, reports = [], jobs = [], p
   const canDisconnectGithub = user.githubConnected && user.hasPassword;
   const severityTotals = useMemo(() => getSeverityTotals(reports), [reports]);
   const notifications = useMemo(() => buildNotifications({ user, reports, jobs }), [jobs, reports, user]);
+  const githubLinkUrl = config.linkUrl || '/auth/github?mode=link';
 
   const githubMessage = useMemo(() => {
     if (!config.enabled) {
@@ -110,10 +113,11 @@ export default function DashboardPage({ user, config, reports = [], jobs = [], p
 
     try {
       await fetchJson('/api/auth/github-link', { method: 'DELETE' });
+      await loadAuthSession({ force: true });
+      setDisconnectOpen(false);
+      setDisconnecting(false);
       setToast({ message: 'GitHub 계정 연결이 해지되었습니다.', type: 'success' });
-      window.setTimeout(() => {
-        window.location.reload();
-      }, 700);
+      router.refresh();
     } catch (error) {
       setToast({ message: error.message, type: 'error' });
       setDisconnecting(false);
@@ -125,10 +129,12 @@ export default function DashboardPage({ user, config, reports = [], jobs = [], p
 
     try {
       await fetchJson('/api/auth/account', { method: 'DELETE' });
+      clearCachedAuthSession();
+      setConfirmOpen(false);
+      setDeleting(false);
       setToast({ message: '회원탈퇴가 완료되었습니다.', type: 'success' });
-      window.setTimeout(() => {
-        window.location.href = '/';
-      }, 700);
+      router.replace('/');
+      router.refresh();
     } catch (error) {
       setToast({ message: error.message, type: 'error' });
       setDeleting(false);
@@ -148,10 +154,9 @@ export default function DashboardPage({ user, config, reports = [], jobs = [], p
 
       setProfileName(payload.user?.name || profileName);
       await loadAuthSession({ force: true });
+      setSavingProfile(false);
       setToast({ message: '닉네임이 변경되었습니다.', type: 'success' });
-      window.setTimeout(() => {
-        window.location.reload();
-      }, 450);
+      router.refresh();
     } catch (error) {
       setToast({ message: error.message, type: 'error' });
       setSavingProfile(false);
@@ -321,7 +326,7 @@ export default function DashboardPage({ user, config, reports = [], jobs = [], p
               <h2>연결 관리</h2>
               <p className="dashboard-panel-text">{githubMessage}</p>
               <div className="dashboard-actions">
-                <button className="dashboard-button" type="button" disabled={!config.enabled || user.githubConnected} onClick={() => (window.location.href = config.linkUrl || '/auth/github?mode=link')}>GitHub 연동하기</button>
+                <button className="dashboard-button" type="button" disabled={!config.enabled || user.githubConnected} onClick={() => window.location.assign(githubLinkUrl)}>GitHub 연동하기</button>
                 <button className="dashboard-button disconnect" type="button" disabled={!canDisconnectGithub || disconnecting} onClick={() => setDisconnectOpen(true)}>{disconnecting ? '해지 중...' : 'GitHub 계정 해지'}</button>
                 <a className="dashboard-button secondary" href="/analysis">파일 분석으로 이동</a>
               </div>

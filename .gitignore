@@ -1,5 +1,6 @@
 node_modules/
 .next/
+.next-webpack-dev/
 .env
 npm-debug.log*
 data/

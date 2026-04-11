@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { clearCachedAuthSession, useAuthSession } from '../lib/client/auth-session';
 import styles from './AppHeader.module.css';
 
@@ -17,6 +18,7 @@ function cx(...classNames) {
 }
 
 export default function AppHeader() {
+  const router = useRouter();
   const session = useAuthSession();
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
@@ -29,7 +31,9 @@ export default function AppHeader() {
       await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
     } finally {
       clearCachedAuthSession();
-      window.location.href = '/';
+      setDropdownOpen(false);
+      router.replace('/');
+      router.refresh();
     }
   }
 

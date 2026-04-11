@@ -16,6 +16,26 @@ function redirectWithParams(appOrigin, pathname, params = {}, hash = '') {
   return NextResponse.redirect(url);
 }
 
+function sanitizeReturnTo(value) {
+  const nextValue = String(value || '').trim();
+
+  if (!nextValue.startsWith('/') || nextValue.startsWith('//')) {
+    return '';
+  }
+
+  if (nextValue.startsWith('/auth/') || nextValue.startsWith('/api/')) {
+    return '';
+  }
+
+  return nextValue;
+}
+
+function getLoginRedirectParams(error, returnTo) {
+  return returnTo
+    ? { error, returnTo }
+    : { error };
+}
+
 export async function GET(request) {
   if (!request) {
     return NextResponse.redirect(new URL('/login', 'http://localhost:3000'));
@@ -36,19 +56,30 @@ export async function GET(request) {
   const config = configModule.getGitHubConfig(request);
   const session = await getSession(request);
   const mode = session.oauthMode === 'link' ? 'link' : session.oauthMode === 'signup' ? 'signup' : 'signin';
+  const oauthReturnTo = sanitizeReturnTo(session.oauthReturnTo);
+  const successRedirect = oauthReturnTo || '/dashboard';
   const code = request.nextUrl.searchParams.get('code');
   const state = request.nextUrl.searchParams.get('state');
 
   if (request.nextUrl.searchParams.get('error')) {
-    return commitSession(redirectWithParams(appOrigin, '/login', { error: 'github_access_denied' }, mode), clearOAuthSession(session));
+    return commitSession(
+      redirectWithParams(appOrigin, '/login', getLoginRedirectParams('github_access_denied', oauthReturnTo), mode),
+      clearOAuthSession(session)
+    );
   }
 
   if (!configModule.hasGitHubConfig(config)) {
-    return commitSession(redirectWithParams(appOrigin, '/login', { error: 'config_missing' }, mode), clearOAuthSession(session));
+    return commitSession(
+      redirectWithParams(appOrigin, '/login', getLoginRedirectParams('config_missing', oauthReturnTo), mode),
+      clearOAuthSession(session)
+    );
   }
 
   if (!code || !state || state !== session.oauthState) {
-    return commitSession(redirectWithParams(appOrigin, '/login', { error: 'invalid_state' }, mode), clearOAuthSession(session));
+    return commitSession(
+      redirectWithParams(appOrigin, '/login', getLoginRedirectParams('invalid_state', oauthReturnTo), mode),
+      clearOAuthSession(session)
+    );
   }
 
   try {
@@ -71,7 +102,10 @@ export async function GET(request) {
 
     const tokenPayload = await tokenResponse.json();
     if (!tokenResponse.ok || tokenPayload.error || !tokenPayload.access_token) {
-      return commitSession(redirectWithParams(appOrigin, '/login', { error: 'token_exchange_failed' }, mode), clearOAuthSession(session));
+      return commitSession(
+        redirectWithParams(appOrigin, '/login', getLoginRedirectParams('token_exchange_failed', oauthReturnTo), mode),
+        clearOAuthSession(session)
+      );
     }
 
     const githubUser = await fetchGitHubUser(tokenPayload.access_token);
@@ -81,25 +115,37 @@ export async function GET(request) {
       const currentUserId = session.oauthAccountId || session.accountId;
 
       if (!currentUserId) {
-        return commitSession(redirectWithParams(appOrigin, '/login', { error: 'login_required' }, 'signin'), clearOAuthSession(session));
+        return commitSession(
+          redirectWithParams(appOrigin, '/login', getLoginRedirectParams('login_required', oauthReturnTo), 'signin'),
+          clearOAuthSession(session)
+        );
       }
 
       const currentUser = databaseModule.findUserById(currentUserId);
       const linkedUser = databaseModule.findUserByGitHubId(githubUser.id);
 
       if (!currentUser) {
-        return commitSession(redirectWithParams(appOrigin, '/login', { error: 'login_required' }, 'signin'), clearOAuthSession(session));
+        return commitSession(
+          redirectWithParams(appOrigin, '/login', getLoginRedirectParams('login_required', oauthReturnTo), 'signin'),
+          clearOAuthSession(session)
+        );
       }
 
       if (linkedUser && linkedUser.id !== currentUser.id) {
-        return commitSession(redirectWithParams(appOrigin, '/login', { error: 'github_already_linked' }, 'signin'), clearOAuthSession(session));
+        return commitSession(
+          redirectWithParams(appOrigin, '/login', getLoginRedirectParams('github_already_linked', oauthReturnTo), 'signin'),
+          clearOAuthSession(session)
+        );
       }
 
       const updatedUser = databaseModule.linkGitHubToUser(currentUser.id, githubUser, {
         accessToken: tokenPayload.access_token,
         tokenScope: githubTokenScope,
       });
-      return commitSession(redirectWithParams(appOrigin, '/dashboard', { auth: 'link_success' }), setAuthenticatedSession(clearOAuthSession(session), updatedUser.id, session.authMethod || 'local'));
+      return commitSession(
+        redirectWithParams(appOrigin, successRedirect, { auth: 'link_success' }),
+        setAuthenticatedSession(clearOAuthSession(session), updatedUser.id, session.authMethod || 'local')
+      );
     }
 
     const linkedUser = databaseModule.findUserByGitHubId(githubUser.id);
@@ -109,16 +155,25 @@ export async function GET(request) {
         tokenScope: githubTokenScope,
       });
       const authenticatedUser = databaseModule.touchUserLastLogin(linkedUser.id);
-      return commitSession(redirectWithParams(appOrigin, '/dashboard', { auth: 'success' }), setAuthenticatedSession(clearOAuthSession(session), authenticatedUser.id, 'github'));
+      return commitSession(
+        redirectWithParams(appOrigin, successRedirect, { auth: 'success' }),
+        setAuthenticatedSession(clearOAuthSession(session), authenticatedUser.id, 'github')
+      );
     }
 
     if (!githubUser.email) {
-      return commitSession(redirectWithParams(appOrigin, '/login', { error: 'github_email_missing' }, mode), clearOAuthSession(session));
+      return commitSession(
+        redirectWithParams(appOrigin, '/login', getLoginRedirectParams('github_email_missing', oauthReturnTo), mode),
+        clearOAuthSession(session)
+      );
     }
 
     const existingEmailUser = databaseModule.findUserByEmail(githubUser.email);
     if (existingEmailUser) {
-      return commitSession(redirectWithParams(appOrigin, '/login', { error: 'github_not_linked' }, 'signin'), clearOAuthSession(session));
+      return commitSession(
+        redirectWithParams(appOrigin, '/login', getLoginRedirectParams('github_not_linked', oauthReturnTo), 'signin'),
+        clearOAuthSession(session)
+      );
     }
 
     const createdUser = databaseModule.createGitHubUser({
@@ -132,8 +187,14 @@ export async function GET(request) {
       githubTokenScope,
     });
 
-    return commitSession(redirectWithParams(appOrigin, '/dashboard', { auth: 'success' }), setAuthenticatedSession(clearOAuthSession(session), createdUser.id, 'github'));
+    return commitSession(
+      redirectWithParams(appOrigin, successRedirect, { auth: 'success' }),
+      setAuthenticatedSession(clearOAuthSession(session), createdUser.id, 'github')
+    );
   } catch {
-    return commitSession(redirectWithParams(appOrigin, '/login', { error: 'github_request_failed' }, mode), clearOAuthSession(session));
+    return commitSession(
+      redirectWithParams(appOrigin, '/login', getLoginRedirectParams('github_request_failed', oauthReturnTo), mode),
+      clearOAuthSession(session)
+    );
   }
 }
