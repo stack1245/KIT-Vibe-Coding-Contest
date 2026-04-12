@@ -1180,6 +1180,20 @@
   white-space: pre-wrap;
 }
 
+.reportFindingCodeBlock {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.055);
+  background: rgba(9, 14, 22, 0.72);
+  color: #d9e4ef;
+  font-size: 13px;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  overflow-x: auto;
+  font-family: 'IBM Plex Mono', 'JetBrains Mono', 'Fira Code', monospace;
+}
+
 .reportFindingList {
   display: flex;
   flex-direction: column;

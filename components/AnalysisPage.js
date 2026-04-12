@@ -5,6 +5,7 @@ import AnalysisUploadPanel from './AnalysisUploadPanel';
 import AppHeader from './AppHeader';
 import PageVideoBackdrop from './PageVideoBackdrop';
 import styles from './AnalysisPage.module.css';
+import { normalizeReportForDisplay } from '../lib/analysis-report-display';
 import { fetchJson } from '../lib/client/fetch-json';
 
 function getSeverityRank(value) {
@@ -32,32 +33,38 @@ function sanitizeDisplayText(value) {
 }
 
 function getFindingSections(finding) {
-  if (finding?.explanation || finding?.detail || finding?.remediation || finding?.location) {
+  if (finding?.explanation || finding?.detail || finding?.remediation || finding?.location || finding?.patchExample) {
     const sections = [
       {
-        label: '원인',
+        label: '1) 취약점 설명',
         value: sanitizeDisplayText(finding.explanation || '설명이 없습니다.'),
+        isCodeBlock: false,
       },
       {
-        label: '공격 시나리오',
-        value: sanitizeDisplayText([finding.detail, finding.abuse].filter(Boolean).join(' ') || '악용 방식 정보가 없습니다.'),
+        label: '2) 취약점 원인 분석',
+        value: sanitizeDisplayText([finding.detail, finding.abuse].filter(Boolean).join('\n\n') || '원인 분석 정보가 없습니다.'),
+        isCodeBlock: false,
       },
       {
-        label: '위치',
-        value: sanitizeDisplayText(finding.codeLocation || finding.location || '위치 정보가 없습니다.'),
+        label: '3) 파일 경로 및 핵심 코드',
+        value: sanitizeDisplayText([
+          `파일 경로: ${finding.location || '위치 정보가 없습니다.'}`,
+          '핵심 코드:',
+          finding.codeLocation || finding.location || '핵심 코드 정보가 없습니다.',
+        ].join('\n')),
+        isCodeBlock: true,
       },
       {
-        label: '수정 방안',
+        label: '4) 취약점 해결 방안',
         value: sanitizeDisplayText(finding.remediation || '대응 방안 정보가 없습니다.'),
+        isCodeBlock: false,
+      },
+      {
+        label: '5) 패치 코드 예시',
+        value: sanitizeDisplayText(finding.patchExample || '현재 코드:\n관련 코드가 없습니다.\n\n패치 예시 코드:\n구체적인 예시 코드가 제공되지 않았습니다.'),
+        isCodeBlock: true,
       },
     ];
-
-    if (finding?.poc) {
-      sections.push({
-        label: 'PoC',
-        value: sanitizeDisplayText(finding.poc),
-      });
-    }
 
     return sections;
   }
@@ -71,6 +78,15 @@ function getFindingSections(finding) {
         value: sanitizeDisplayText(rest.join(':').trim() || entry),
       };
     });
+}
+
+function formatReportHeading(title) {
+  const normalized = String(title || '').trim();
+  if (!normalized) {
+    return '분석 리포트';
+  }
+
+  return /리포트$/u.test(normalized) ? normalized : `${normalized} 분석 리포트`;
 }
 
 function buildFindingSignature(finding) {
@@ -185,27 +201,6 @@ function getTopFindingTitles(reports) {
     .slice(0, 3);
 }
 
-function computeCompareSummary(left, right) {
-  if (!left || !right) {
-    return null;
-  }
-
-  const leftMap = new Map(left.findings.map((finding) => [buildFindingSignature(finding), finding]));
-  const rightMap = new Map(right.findings.map((finding) => [buildFindingSignature(finding), finding]));
-
-  const added = right.findings.filter((finding) => !leftMap.has(buildFindingSignature(finding)));
-  const removed = left.findings.filter((finding) => !rightMap.has(buildFindingSignature(finding)));
-  const common = right.findings.filter((finding) => leftMap.has(buildFindingSignature(finding)));
-
-  return {
-    left,
-    right,
-    added,
-    removed,
-    common,
-  };
-}
-
 function matchesSeverity(report, severity) {
   if (severity === 'all') {
     return true;
@@ -215,7 +210,7 @@ function matchesSeverity(report, severity) {
 }
 
 export default function AnalysisPage({ initialReports = [], preferences = null, github = null }) {
-  const [reports, setReports] = useState(initialReports);
+  const [reports, setReports] = useState(() => initialReports.map((report) => normalizeReportForDisplay(report)));
   const [activeReport, setActiveReport] = useState(null);
   const [pendingDeleteReport, setPendingDeleteReport] = useState(null);
   const [deletingReport, setDeletingReport] = useState(false);
@@ -225,7 +220,6 @@ export default function AnalysisPage({ initialReports = [], preferences = null, 
   const [query, setQuery] = useState('');
   const [severityFilter, setSeverityFilter] = useState('all');
   const [sortBy, setSortBy] = useState(preferences?.defaultAnalysisSort || 'latest');
-  const [compareIds, setCompareIds] = useState([]);
   const [workspaceNotice, setWorkspaceNotice] = useState('');
   const [sharingReport, setSharingReport] = useState(false);
 
@@ -284,14 +278,6 @@ export default function AnalysisPage({ initialReports = [], preferences = null, 
     () => reports.filter((report) => report.shareEnabled).length,
     [reports],
   );
-  const compareReports = useMemo(
-    () => compareIds.map((reportId) => reports.find((report) => report.id === reportId)).filter(Boolean),
-    [compareIds, reports],
-  );
-  const compareSummary = useMemo(
-    () => (compareReports.length === 2 ? computeCompareSummary(compareReports[0], compareReports[1]) : null),
-    [compareReports],
-  );
   const topFindingTitles = useMemo(() => getTopFindingTitles(reports), [reports]);
 
   function handleReportCreated(report) {
@@ -299,34 +285,21 @@ export default function AnalysisPage({ initialReports = [], preferences = null, 
       return;
     }
 
-    setReports((current) => [report, ...current.filter((item) => item.id !== report.id)].slice(0, 100));
-    setActiveReport(report);
+    const normalizedReport = normalizeReportForDisplay(report);
+    setReports((current) => [normalizedReport, ...current.filter((item) => item.id !== normalizedReport.id)].slice(0, 100));
+    setActiveReport(normalizedReport);
     setWorkspaceNotice('새 분석 리포트를 추가했습니다.');
   }
 
   function removeReportFromWorkspace(reportId) {
     setReports((current) => current.filter((report) => report.id !== reportId));
-    setCompareIds((current) => current.filter((id) => id !== reportId));
     setActiveReport((current) => (current?.id === reportId ? null : current));
   }
 
   function updateReportInState(nextReport) {
-    setReports((current) => current.map((report) => (report.id === nextReport.id ? nextReport : report)));
-    setActiveReport((current) => (current?.id === nextReport.id ? nextReport : current));
-  }
-
-  function toggleCompare(reportId) {
-    setCompareIds((current) => {
-      if (current.includes(reportId)) {
-        return current.filter((id) => id !== reportId);
-      }
-
-      if (current.length === 2) {
-        return [current[1], reportId];
-      }
-
-      return [...current, reportId];
-    });
+    const normalizedReport = normalizeReportForDisplay(nextReport);
+    setReports((current) => current.map((report) => (report.id === normalizedReport.id ? normalizedReport : report)));
+    setActiveReport((current) => (current?.id === normalizedReport.id ? normalizedReport : current));
   }
 
   async function handleDeleteReport() {
@@ -391,7 +364,6 @@ export default function AnalysisPage({ initialReports = [], preferences = null, 
       });
 
       setReports([]);
-      setCompareIds([]);
       setActiveReport(null);
       setWorkspaceNotice(payload.message || '분석 리포트를 전체 삭제했습니다.');
     } catch (error) {
@@ -433,15 +405,6 @@ export default function AnalysisPage({ initialReports = [], preferences = null, 
     }
   }
 
-  async function handleCopySummary(report) {
-    try {
-      await copyToClipboard(buildReportShareText(report));
-      setWorkspaceNotice('분석 요약을 복사했습니다.');
-    } catch {
-      setWorkspaceNotice('분석 요약 복사에 실패했습니다.');
-    }
-  }
-
   return (
     <div className={styles.pageWrapper}>
       <AppHeader />
@@ -466,7 +429,7 @@ export default function AnalysisPage({ initialReports = [], preferences = null, 
             <article className={styles.workspaceStatCard}>
               <span>누적 리포트</span>
               <strong>{reports.length}</strong>
-              <p>분석 이력을 쌓고 비교할 수 있습니다.</p>
+              <p>분석 이력을 쌓고 다시 열어볼 수 있습니다.</p>
             </article>
             <article className={styles.workspaceStatCard}>
               <span>탐지 항목</span>
@@ -487,7 +450,7 @@ export default function AnalysisPage({ initialReports = [], preferences = null, 
               <div className={styles.cardHead}>
                 <h3>분석 워크스페이스</h3>
                 <div className={styles.cardHeadActions}>
-                  <span>검색, 비교, 공유, 재분석을 한 곳에서 처리</span>
+                  <span>검색, 공유, 재분석을 한 곳에서 처리</span>
                   <button
                     type="button"
                     className={styles.dangerButton}
@@ -533,61 +496,6 @@ export default function AnalysisPage({ initialReports = [], preferences = null, 
 
               {workspaceNotice ? <div className={styles.workspaceNotice}>{workspaceNotice}</div> : null}
 
-              {compareSummary ? (
-                <div className={styles.comparePanel}>
-                  <div className={styles.compareHead}>
-                    <div>
-                      <h4>{compareSummary.left.title} vs {compareSummary.right.title}</h4>
-                      <p>같은 프로젝트의 전후 차이나, 다른 업로드 결과를 빠르게 비교할 수 있습니다.</p>
-                    </div>
-                    <button type="button" className={styles.moreButton} onClick={() => setCompareIds([])}>
-                      비교 초기화
-                    </button>
-                  </div>
-
-                  <div className={styles.compareGrid}>
-                    <div className={styles.compareColumn}>
-                      <strong>새로 추가된 항목</strong>
-                      {compareSummary.added.length ? (
-                        <ul className={styles.compareList}>
-                          {compareSummary.added.map((finding) => (
-                            <li key={`added-${buildFindingSignature(finding)}`}>[{finding.severity}] {finding.title} / {finding.location || '위치 정보 없음'}</li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className={styles.compareEmpty}>추가된 취약점이 없습니다.</p>
-                      )}
-                    </div>
-
-                    <div className={styles.compareColumn}>
-                      <strong>사라진 항목</strong>
-                      {compareSummary.removed.length ? (
-                        <ul className={styles.compareList}>
-                          {compareSummary.removed.map((finding) => (
-                            <li key={`removed-${buildFindingSignature(finding)}`}>[{finding.severity}] {finding.title} / {finding.location || '위치 정보 없음'}</li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className={styles.compareEmpty}>해소된 항목이 없습니다.</p>
-                      )}
-                    </div>
-
-                    <div className={styles.compareColumn}>
-                      <strong>공통으로 남은 항목</strong>
-                      {compareSummary.common.length ? (
-                        <ul className={styles.compareList}>
-                          {compareSummary.common.slice(0, 6).map((finding) => (
-                            <li key={`common-${buildFindingSignature(finding)}`}>[{finding.severity}] {finding.title} / {finding.location || '위치 정보 없음'}</li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className={styles.compareEmpty}>공통 항목이 없습니다.</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-
               {topFindingTitles.length ? (
                 <div className={styles.insightStrip}>
                   {topFindingTitles.map(([title, count]) => (
@@ -602,8 +510,6 @@ export default function AnalysisPage({ initialReports = [], preferences = null, 
                 <>
                   <div className={styles.resultList}>
                     {filteredReports.map((report) => {
-                      const isSelectedForCompare = compareIds.includes(report.id);
-
                       return (
                         <div key={report.id} className={styles.resultItem}>
                           <div className={styles.resultTop}>
@@ -627,22 +533,8 @@ export default function AnalysisPage({ initialReports = [], preferences = null, 
                             <button type="button" className={styles.inlineActionButton} onClick={() => setActiveReport(report)}>
                               상세 보기
                             </button>
-                            <button type="button" className={styles.inlineActionButton} onClick={() => toggleCompare(report.id)}>
-                              {isSelectedForCompare ? '비교 해제' : '비교 선택'}
-                            </button>
-                            <button type="button" className={styles.inlineActionButton} onClick={() => handleCopySummary(report)}>
-                              요약 복사
-                            </button>
                             <button type="button" className={styles.inlineActionButton} onClick={() => handleCopyShare(report)} disabled={sharingReport}>
                               링크 복사
-                            </button>
-                            <button
-                              type="button"
-                              className={`${styles.inlineActionButton} ${styles.inlineDeleteAction}`}
-                              onClick={() => handleDeleteReportFromList(report)}
-                              disabled={deletingReportId === report.id}
-                            >
-                              {deletingReportId === report.id ? '삭제 중...' : '삭제'}
                             </button>
                           </div>
                         </div>
@@ -672,7 +564,7 @@ export default function AnalysisPage({ initialReports = [], preferences = null, 
             <div className={styles.reportHeader}>
               <div>
                 <p className={styles.reportEyebrow}>analysis report</p>
-                <h2 className={styles.reportTitle}>{activeReport.title} 분석 리포트</h2>
+                <h2 className={styles.reportTitle}>{formatReportHeading(activeReport.title)}</h2>
               </div>
               <button type="button" className={styles.reportClose} onClick={() => setActiveReport(null)}>
                 닫기
@@ -680,9 +572,6 @@ export default function AnalysisPage({ initialReports = [], preferences = null, 
             </div>
 
             <div className={styles.reportUtilityBar}>
-              <button type="button" className={styles.inlineActionButton} onClick={() => handleCopySummary(activeReport)}>
-                요약 복사
-              </button>
               <button type="button" className={styles.inlineActionButton} onClick={() => downloadReport(activeReport)}>
                 JSON 다운로드
               </button>
@@ -719,7 +608,11 @@ export default function AnalysisPage({ initialReports = [], preferences = null, 
                         {getFindingSections(finding).map((section) => (
                           <div key={`${finding.id}-${section.label}`} className={styles.reportFindingSection}>
                             <strong className={styles.reportFindingLabel}>{section.label}</strong>
-                            <p className={styles.reportFindingDescription}>{section.value}</p>
+                            {section.isCodeBlock ? (
+                              <pre className={styles.reportFindingCodeBlock}>{section.value}</pre>
+                            ) : (
+                              <p className={styles.reportFindingDescription}>{section.value}</p>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -729,7 +622,7 @@ export default function AnalysisPage({ initialReports = [], preferences = null, 
               ) : (
                 <div className={styles.emptyState}>
                   {/제한 시간 안에 확정 결과를 만들지 못했습니다|추가 검토가 필요합니다|전체 결과를 끝까지 확정하지 못했습니다|전체 로직 검토를 끝내지 못했습니다/.test(String(activeReport?.summary || ''))
-                    ? '자동 분석이 아직 확정 취약점을 만들지 못했습니다. 요약 문구를 기준으로 추가 검토를 진행하면 됩니다.'
+                    ? '심층 분석이 중단되어 확정 결과를 끝까지 만들지 못했습니다. 이 리포트는 추가 검토가 필요한 상태입니다.'
                     : '실행 가능한 코드 경로에서 확정된 취약점이 확인되지 않았습니다.'}
                 </div>
               )}
