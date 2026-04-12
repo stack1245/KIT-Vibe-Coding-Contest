@@ -7,6 +7,7 @@ import PageVideoBackdrop from './PageVideoBackdrop';
 import styles from './AnalysisPage.module.css';
 import { normalizeReportForDisplay } from '../lib/analysis-report-display';
 import { fetchJson } from '../lib/client/fetch-json';
+import { buildFindingQuizKey, isQuizEligibleFinding } from '../lib/report-quiz';
 
 function getSeverityRank(value) {
   return { high: 3, medium: 2, low: 1 }[value] || 0;
@@ -89,8 +90,18 @@ function formatReportHeading(title) {
   return /리포트$/u.test(normalized) ? normalized : `${normalized} 분석 리포트`;
 }
 
-function buildFindingSignature(finding) {
-  return [finding?.title, finding?.location, finding?.severity].filter(Boolean).join('::');
+function LoadingDots() {
+  const [count, setCount] = useState(1);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setCount((current) => (current === 3 ? 1 : current + 1));
+    }, 450);
+
+    return () => window.clearInterval(timer);
+  }, []);
+
+  return <span className={styles.practiceLoadingText}>{`로딩중${'.'.repeat(count)}`}</span>;
 }
 
 function getReportSectionTitle(report) {
@@ -222,6 +233,11 @@ export default function AnalysisPage({ initialReports = [], preferences = null, 
   const [sortBy, setSortBy] = useState(preferences?.defaultAnalysisSort || 'latest');
   const [workspaceNotice, setWorkspaceNotice] = useState('');
   const [sharingReport, setSharingReport] = useState(false);
+  const [generatingQuizKey, setGeneratingQuizKey] = useState('');
+  const [openingQuizKey, setOpeningQuizKey] = useState('');
+  const [openQuizToken, setOpenQuizToken] = useState('');
+  const [flagDrafts, setFlagDrafts] = useState({});
+  const [submittingFlagKey, setSubmittingFlagKey] = useState('');
 
   useEffect(() => {
     if (!workspaceNotice) {
@@ -231,6 +247,13 @@ export default function AnalysisPage({ initialReports = [], preferences = null, 
     const timer = window.setTimeout(() => setWorkspaceNotice(''), 3200);
     return () => window.clearTimeout(timer);
   }, [workspaceNotice]);
+
+  useEffect(() => {
+    if (!activeReport) {
+      setOpeningQuizKey('');
+      setOpenQuizToken('');
+    }
+  }, [activeReport]);
 
   const filteredReports = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -300,6 +323,92 @@ export default function AnalysisPage({ initialReports = [], preferences = null, 
     const normalizedReport = normalizeReportForDisplay(nextReport);
     setReports((current) => current.map((report) => (report.id === normalizedReport.id ? normalizedReport : report)));
     setActiveReport((current) => (current?.id === normalizedReport.id ? normalizedReport : current));
+  }
+
+  function getFindingPracticeKey(finding, index = 0) {
+    return String(finding?.practice?.key || buildFindingQuizKey(finding, index)).trim();
+  }
+
+  async function handleGenerateQuiz(report, finding, findingIndex) {
+    const findingKey = getFindingPracticeKey(finding, findingIndex);
+    if (!report?.id || !findingKey || generatingQuizKey) {
+      return;
+    }
+
+    setGeneratingQuizKey(findingKey);
+
+    try {
+      const payload = await fetchJson(`/api/analysis/reports/${report.id}/quiz`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ findingKey }),
+      });
+
+      if (payload.report) {
+        updateReportInState(payload.report);
+      }
+
+      setWorkspaceNotice('실습 문제가 준비되었습니다.');
+    } catch (error) {
+      setWorkspaceNotice(error.message || '문제 생성에 실패했습니다.');
+    } finally {
+      setGeneratingQuizKey('');
+    }
+  }
+
+  function handleOpenQuiz(finding, index) {
+    const sessionToken = String(finding?.practice?.sessionToken || '').trim();
+    if (!sessionToken) {
+      return;
+    }
+
+    setOpeningQuizKey(getFindingPracticeKey(finding, index));
+    setOpenQuizToken(sessionToken);
+  }
+
+  function handleCloseQuiz(finding, index) {
+    const findingKey = getFindingPracticeKey(finding, index);
+    if (openingQuizKey === findingKey) {
+      setOpeningQuizKey('');
+      setOpenQuizToken('');
+    }
+  }
+
+  async function handleSubmitFlag(report, finding, index) {
+    const findingKey = getFindingPracticeKey(finding, index);
+    const sessionToken = String(finding?.practice?.sessionToken || '').trim();
+    const submittedFlag = String(flagDrafts?.[findingKey] || '').trim();
+
+    if (!sessionToken || !submittedFlag || submittingFlagKey) {
+      return;
+    }
+
+    setSubmittingFlagKey(findingKey);
+
+    try {
+      const payload = await fetchJson(`/api/analysis/quizzes/${sessionToken}/flag`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ flag: submittedFlag }),
+      });
+
+      if (payload.report) {
+        updateReportInState(payload.report);
+      }
+
+      setFlagDrafts((current) => {
+        const nextDrafts = { ...current };
+        delete nextDrafts[findingKey];
+        return nextDrafts;
+      });
+      setOpeningQuizKey('');
+      setOpenQuizToken('');
+      setWorkspaceNotice(payload.message || '플래그 제출이 완료되었습니다.');
+    } catch (error) {
+      setWorkspaceNotice(error.message || '플래그 제출에 실패했습니다.');
+    } finally {
+      setSubmittingFlagKey('');
+    }
   }
 
   async function handleDeleteReport() {
@@ -597,8 +706,22 @@ export default function AnalysisPage({ initialReports = [], preferences = null, 
 
               {activeReport.findings.length ? (
                 <div className={styles.reportFindingList}>
-                  {activeReport.findings.map((finding) => (
-                    <article key={finding.id} className={styles.reportFinding}>
+                  {activeReport.findings.map((finding, findingIndex) => {
+                    const practiceKey = getFindingPracticeKey(finding, findingIndex);
+                    const practice = finding?.practice || {
+                      key: practiceKey,
+                      eligible: isQuizEligibleFinding(finding),
+                      status: 'idle',
+                      hasQuiz: false,
+                      solved: false,
+                      sessionToken: '',
+                    };
+                    const isGeneratingQuiz = generatingQuizKey === practiceKey;
+                    const isSubmittingFlag = submittingFlagKey === practiceKey;
+                    const isOpenQuiz = openingQuizKey === practiceKey && openQuizToken === practice.sessionToken;
+
+                    return (
+                    <article key={practiceKey} className={styles.reportFinding}>
                       <div className={styles.resultTop}>
                         <div className={styles.reportFindingTitle}>{finding.title}</div>
                         <div className={`${styles.severityBadge} ${styles[finding.severity]}`}>{finding.severity}</div>
@@ -616,8 +739,89 @@ export default function AnalysisPage({ initialReports = [], preferences = null, 
                           </div>
                         ))}
                       </div>
+
+                      {practice.eligible ? (
+                        <div className={styles.practiceBox}>
+                          <div className={styles.practiceHead}>
+                            <strong>실습 문제</strong>
+                            <span>high 취약점 전용</span>
+                          </div>
+
+                          {practice.solved ? (
+                            <div className={styles.practiceSolvedNotice}>이미 실습한 취약점입니다!</div>
+                          ) : practice.hasQuiz ? (
+                            <>
+                              <div className={styles.practiceActionRow}>
+                                <button
+                                  type="button"
+                                  className={styles.secondaryButton}
+                                  onClick={() => handleCloseQuiz(finding, findingIndex)}
+                                >
+                                  문제 닫기
+                                </button>
+                                <button
+                                  type="button"
+                                  className={styles.inlineActionButton}
+                                  onClick={() => handleOpenQuiz(finding, findingIndex)}
+                                >
+                                  문제 풀기
+                                </button>
+                              </div>
+
+                              <div className={styles.practiceFlagRow}>
+                                <input
+                                  className={styles.practiceFlagInput}
+                                  type="text"
+                                  value={flagDrafts?.[practiceKey] || ''}
+                                  onChange={(event) => setFlagDrafts((current) => ({
+                                    ...current,
+                                    [practiceKey]: event.target.value,
+                                  }))}
+                                  placeholder="Phase{...}"
+                                />
+                                <button
+                                  type="button"
+                                  className={styles.inlineActionButton}
+                                  onClick={() => handleSubmitFlag(activeReport, finding, findingIndex)}
+                                  disabled={isSubmittingFlag}
+                                >
+                                  {isSubmittingFlag ? '제출 중...' : '플래그 제출'}
+                                </button>
+                              </div>
+
+                              {isOpenQuiz ? (
+                                <div className={styles.practiceFrameWrap}>
+                                  <iframe
+                                    title={`${finding.title} 실습 문제`}
+                                    className={styles.practiceFrame}
+                                    src={`/analysis/quiz/${practice.sessionToken}`}
+                                  />
+                                </div>
+                              ) : null}
+                            </>
+                          ) : isGeneratingQuiz ? (
+                            <div className={styles.practiceActionRow}>
+                              <button type="button" className={styles.inlineActionButton} disabled>
+                                문제 생성
+                              </button>
+                              <LoadingDots />
+                            </div>
+                          ) : (
+                            <div className={styles.practiceActionRow}>
+                              <button
+                                type="button"
+                                className={styles.inlineActionButton}
+                                onClick={() => handleGenerateQuiz(activeReport, finding, findingIndex)}
+                              >
+                                문제 생성
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ) : null}
                     </article>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className={styles.emptyState}>

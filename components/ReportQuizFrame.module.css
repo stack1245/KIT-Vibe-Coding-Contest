@@ -1,0 +1,239 @@
+.framePage {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top, rgba(255,255,255,0.06), transparent 28%),
+    linear-gradient(180deg, #050608, #0a0d11 55%, #11151c);
+  color: #e8edf4;
+  font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+}
+
+.frameInner {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 32px 24px 48px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.eyebrow {
+  margin: 0 0 10px;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #7c8794;
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(26px, 4vw, 40px);
+  line-height: 1.18;
+  letter-spacing: -0.04em;
+}
+
+.metaCard {
+  min-width: 140px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  text-align: right;
+}
+
+.metaCard strong {
+  display: block;
+  font-size: 22px;
+}
+
+.metaCard span {
+  display: block;
+  margin-top: 8px;
+  color: #9aa6b3;
+  font-size: 13px;
+}
+
+.description {
+  margin: 20px 0 0;
+  color: #bcc6d1;
+  line-height: 1.85;
+  font-size: 15px;
+}
+
+.successPanel {
+  margin-top: 18px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  background: rgba(34, 197, 94, 0.14);
+  border: 1px solid rgba(74, 222, 128, 0.35);
+  color: #dafbe3;
+}
+
+.questionList {
+  display: grid;
+  gap: 16px;
+  margin-top: 26px;
+}
+
+.questionCard {
+  padding: 20px;
+  border-radius: 20px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.24);
+}
+
+.questionCardIncorrect {
+  border-color: rgba(248, 113, 113, 0.44);
+  box-shadow: 0 16px 32px rgba(127, 29, 29, 0.2);
+}
+
+.questionHead {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.questionNumber,
+.questionSection {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+.questionNumber {
+  background: rgba(255,255,255,0.08);
+  color: #eef4fb;
+}
+
+.questionSection {
+  background: rgba(56, 189, 248, 0.12);
+  color: #cdeffd;
+}
+
+.questionPrompt {
+  margin: 14px 0 0;
+  font-size: 20px;
+  line-height: 1.55;
+  letter-spacing: -0.02em;
+}
+
+.choiceList {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.choiceItem {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.02);
+  cursor: pointer;
+}
+
+.choiceItem input {
+  margin-top: 3px;
+}
+
+.choiceItem span {
+  flex: 1;
+  color: #d7dee6;
+  line-height: 1.7;
+}
+
+.choiceItemSelected {
+  border-color: rgba(147, 197, 253, 0.45);
+  background: rgba(37, 99, 235, 0.14);
+}
+
+.footer {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 26px;
+}
+
+.submitButton,
+.copyButton {
+  width: fit-content;
+  min-width: 160px;
+  height: 46px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.08);
+  color: #eef4fb;
+  cursor: pointer;
+}
+
+.submitButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.message {
+  color: #c8d1dc;
+  line-height: 1.7;
+}
+
+.flagPanel {
+  margin-top: 24px;
+  padding: 18px 20px;
+  border-radius: 20px;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(52, 211, 153, 0.3);
+}
+
+.flagPanel strong {
+  display: block;
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  color: #d9fff0;
+  text-transform: uppercase;
+}
+
+.flagPanel code {
+  display: block;
+  margin-top: 12px;
+  font-size: 24px;
+  line-height: 1.5;
+  color: #ffffff;
+  word-break: break-all;
+}
+
+.flagPanel p {
+  margin: 12px 0 0;
+  color: #d8f6eb;
+  line-height: 1.7;
+}
+
+.copyButton {
+  margin-top: 16px;
+}
+
+@media (max-width: 720px) {
+  .frameInner {
+    padding: 24px 16px 40px;
+  }
+
+  .header {
+    flex-direction: column;
+  }
+
+  .metaCard {
+    width: 100%;
+    text-align: left;
+  }
+}
