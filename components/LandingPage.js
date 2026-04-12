@@ -21,7 +21,7 @@ export default function LandingPage() {
   const session = useAuthSession();
   const [activeSection, setActiveSection] = useState(0);
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [introImageOpen, setIntroImageOpen] = useState(false);
+  const [introImageLightbox, setIntroImageLightbox] = useState(null);
   const [toast, setToast] = useState('');
   const currentSectionRef = useRef(0);
   const isNavigatingRef = useRef(false);
@@ -378,8 +378,8 @@ export default function LandingPage() {
                 Phase Vuln Coach
               </div>
               <p className={cx('hero-text', 'reveal', 'from-bottom')} style={{ transitionDelay: '0.22s' }}>
-                현재 코드에 숨어있는 보안 취약점을 빠르게 탐지하고, 각 취약점이 왜 문제인지 공격 시나리오와 함께 알기 쉽게 설명해줍니다.
-                거기서 끝이 아니라 안전한 코드 패치 방법까지 제안해주는, 개발자를 위한 취약점 코칭 및 탐지 플랫폼입니다!
+                현재 코드에 숨어있는 보안 취약점을 빠르게 탐지하고, 각 취약점이 무엇이고, 왜 생겨나게 되었는지, 코드 첨부와 함께 알기 쉽게 설명해줍니다.
+                거기서 끝이 아니라 안전한 코드 패치 방법및 취약점 실습 환경까지 제안해주는, 개발자를 위한 취약점 코칭 및 탐지 플랫폼입니다!
               </p>
             </div>
           </div>
@@ -423,7 +423,7 @@ export default function LandingPage() {
 
         <section className={cx('section', 'ai-section')} id="ai">
           <div className={styles['ai-head']}>
-            <h2 className={cx('ai-title', 'reveal', 'from-bottom')}>AI를 통해 더 빠르고 더 똑똑하게<br />사이버 보안 위협을 차단하세요.</h2>
+            <h2 className={cx('ai-title', 'reveal', 'from-bottom')}>AI 분석을 통해<br />코드 속 보안 위협을 빠르고 정확하게 파악하세요</h2>
             <p className={cx('ai-subtext', 'reveal', 'from-bottom')} style={{ transitionDelay: '0.12s' }}>
               보안 점검을 받았어도 그 위험을 놓치거나 심각한 타이밍에 문제를 발견하면 위험합니다.
               개발자가 보안 대응을 자연스럽게 익히고, 다음 코드에서는 같은 실수를 줄일 수 있도록 분석과 설명, 대응 방향까지 함께 제공합니다.
@@ -431,7 +431,23 @@ export default function LandingPage() {
           </div>
 
           <div className={styles['ai-grid']}>
-            <div className={cx('ai-box', 'reveal', 'from-left')} />
+            <div className={cx('ai-box', 'ai-inline-image-box', 'reveal', 'from-left')}>
+              <button
+                type="button"
+                className={styles['ai-image-trigger']}
+                aria-label="코드 분석 소개 이미지 확대"
+                onClick={() => setIntroImageLightbox({
+                  src: '/assets/images/landing-intro-first.png',
+                  alt: '코드 보안 분석 소개 이미지',
+                })}
+              >
+                <img
+                  src="/assets/images/landing-intro-first.png"
+                  alt="코드 보안 분석 소개 이미지"
+                  className={styles['ai-inline-box-image']}
+                />
+              </button>
+            </div>
             <div className={cx('ai-text-block', 'reveal', 'from-right')}>
               <strong>우리 페이즈 취약점 코치 애플리케이션은</strong><br />빠르고 실용적인 취약점 진단 결과를 제공하고,
               그에 맞는 개선 포인트와 학습 흐름까지 함께 제시합니다.
@@ -441,12 +457,15 @@ export default function LandingPage() {
               단순히 취약점을 찾는 데서 끝나는 것이 아니라, <strong>왜 위험한지</strong>, <strong>어떻게 고쳐야 하는지</strong>,
               <strong>앞으로 비슷한 실수를 어떻게 피할지</strong>까지 개발자 눈높이에 맞춰 정리해 줍니다.
             </div>
-            <div className={cx('ai-box', 'ai-image-box', 'reveal', 'from-right')}>
+            <div className={cx('ai-box', 'ai-image-box', 'ai-image-box-raised', 'reveal', 'from-right')}>
               <button
                 type="button"
                 className={styles['ai-image-trigger']}
                 aria-label="소개 이미지 확대"
-                onClick={() => setIntroImageOpen(true)}
+                onClick={() => setIntroImageLightbox({
+                  src: '/assets/images/landing-intro-second.jpg',
+                  alt: 'Phase Vuln Coach 소개 이미지',
+                })}
               >
                 <img
                   src="/assets/images/landing-intro-second.jpg"
@@ -469,7 +488,7 @@ export default function LandingPage() {
               <img src="/assets/images/member-servelt.png" alt="Servelt" className={styles['member-photo']} />
               <div className={styles['member-info']}>
                 <h3>Servelt</h3>
-                <p>선린인터넷고등학교에서 선린 Phase 동아리 부장을 맡고있는 여현빈이라고 합니다! 주 분야는 System Hacking이며 RubiyaLab CTF팀에서 활동하고 있습니다!</p>
+                <p>선린인터넷고등학교에 재학중이며, 연합 해킹 동아리 Phase의 부장을 맡고있는 여현빈이라고 합니다! 주 분야는 System Hacking이며 RubiyaLab CTF팀에서 활동하고 있습니다!</p>
               </div>
             </article>
 
@@ -477,7 +496,7 @@ export default function LandingPage() {
               <img src="/assets/images/member-ll-rich.png" alt="lL_rich" className={styles['member-photo']} />
               <div className={styles['member-info']}>
                 <h3>lL_rich</h3>
-                <p>한세사이버보안고등학교에 다니고 있고, 네트워크를 뜯어보는 게 취미인 고등학생 lL_rich입니다.</p>
+                <p>한세사이버보안고등학교에 재학중이며, 연합 해킹 동아리 Phase의 부원인 임현빈이라고 합니다! 네트워크를 뜯어보는 게 취미입니다.</p>
               </div>
             </article>
 
@@ -485,7 +504,7 @@ export default function LandingPage() {
               <img src="/assets/images/member-stack.png" alt="Stack" className={styles['member-photo']} />
               <div className={styles['member-info']}>
                 <h3>Stack</h3>
-                <p>선린인터넷고등학교에서 선린 Phase 동아리 부원인 탁도형이라고 합니다! 관심있는 분야는 Web/App Hacking입니다.</p>
+                <p>선린인터넷고등학교에 재학중이며, 연합 해킹 동아리 Phase의 부원인 탁도형이라고 합니다! 관심있는 분야는 Web/App Hacking입니다.</p>
               </div>
             </article>
 
@@ -493,32 +512,32 @@ export default function LandingPage() {
               <img src="/assets/images/member-dawneast.png" alt="Dawneast" className={styles['member-photo']} />
               <div className={styles['member-info']}>
                 <h3>Dawneast</h3>
-                <p>선린인터넷고등학교에서 선린 Phase 동아리 부원인 신동효라고 합니다! 관심있는 분야는 Web, System Hacking입니다.</p>
+                <p>선린인터넷고등학교에 재학중이며, 연합 해킹 동아리 Phase 의 부원인 신동효라고 합니다! 관심있는 분야는 Web, System Hacking입니다.</p>
               </div>
             </article>
           </div>
         </section>
       </main>
 
-      {introImageOpen ? (
+      {introImageLightbox ? (
         <div className={styles['image-lightbox']}>
           <button
             type="button"
             className={styles['image-lightbox-backdrop']}
             aria-label="소개 이미지 닫기"
-            onClick={() => setIntroImageOpen(false)}
+            onClick={() => setIntroImageLightbox(null)}
           />
           <div className={styles['image-lightbox-dialog']} role="dialog" aria-modal="true">
             <button
               type="button"
               className={styles['image-lightbox-close']}
-              onClick={() => setIntroImageOpen(false)}
+              onClick={() => setIntroImageLightbox(null)}
             >
               닫기
-            </button>
+g           </button>
             <img
-              src="/assets/images/landing-intro-second.jpg"
-              alt="Phase Vuln Coach 소개 이미지 확대본"
+              src={introImageLightbox.src}
+              alt={`${introImageLightbox.alt} 확대본`}
               className={styles['image-lightbox-image']}
             />
           </div>

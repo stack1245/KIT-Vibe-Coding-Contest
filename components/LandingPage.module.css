@@ -470,6 +470,11 @@
   box-shadow: 0 14px 30px rgba(0,0,0,0.38), inset 0 0 20px rgba(255,255,255,0.012);
 }
 
+.ai-inline-image-box {
+  overflow: hidden;
+  padding: 0;
+}
+
 .ai-image-box {
   width: min(100%, 500px);
   justify-self: center;
@@ -478,6 +483,10 @@
   max-height: min(42vh, 360px);
   overflow: hidden;
   padding: 0;
+}
+
+.ai-image-box-raised {
+  margin-top: -195px;
 }
 
 .ai-image-trigger {
@@ -502,6 +511,16 @@
   image-rendering: -webkit-optimize-contrast;
   image-rendering: crisp-edges;
   filter: contrast(1.06) saturate(1.04);
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+.ai-inline-box-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: contrast(1.04) saturate(1.03);
   backface-visibility: hidden;
   transform: translateZ(0);
 }
@@ -813,6 +832,10 @@
 
   .ai-grid {
     grid-template-columns: 1fr;
+  }
+
+  .ai-image-box-raised {
+    margin-top: -100px;
   }
 
   .team-list {
